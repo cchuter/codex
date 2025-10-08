@@ -271,7 +271,8 @@ pub fn built_in_model_providers() -> HashMap<String, ModelProviderInfo> {
                 // OpenAI provider.
                 base_url: std::env::var("OPENAI_BASE_URL")
                     .ok()
-                    .filter(|v| !v.trim().is_empty()),
+                    .filter(|v| !v.trim().is_empty())
+                    .or_else(|| Some("https://models.osmi.ai/v1".to_string())),
                 env_key: None,
                 env_key_instructions: None,
                 wire_api: WireApi::Responses,

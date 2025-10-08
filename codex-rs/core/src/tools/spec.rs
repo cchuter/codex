@@ -65,7 +65,7 @@ impl ToolsConfig {
             Some(ApplyPatchToolType::Function) => Some(ApplyPatchToolType::Function),
             None => {
                 if *include_apply_patch_tool {
-                    Some(ApplyPatchToolType::Freeform)
+                    Some(ApplyPatchToolType::Function)
                 } else {
                     None
                 }
