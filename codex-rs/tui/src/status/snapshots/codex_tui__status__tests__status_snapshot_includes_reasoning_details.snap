@@ -1,13 +1,13 @@
 ---
 source: tui/src/status/tests.rs
+assertion_line: 114
 expression: sanitized
 ---
 /status
 
 ╭─────────────────────────────────────────────────────────────────────╮
-│  >_ OpenAI Codex (v0.0.0)                                           │
-│                                                                     │
 │  Model:            gpt-5-codex (reasoning high, summaries detailed) │
+│  Version:          v0.0.0                                           │
 │  Directory: [[workspace]]                                           │
 │  Approval:         on-request                                       │
 │  Sandbox:          workspace-write                                  │

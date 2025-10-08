@@ -118,6 +118,9 @@ pub(crate) fn output_lines(
 }
 
 pub(crate) fn spinner(start_time: Option<Instant>) -> Span<'static> {
+    if cfg!(test) {
+        return "•".into();
+    }
     let elapsed = start_time.map(|st| st.elapsed()).unwrap_or_default();
     if supports_color::on_cached(supports_color::Stream::Stdout)
         .map(|level| level.has_16m)

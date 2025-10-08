@@ -518,23 +518,16 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
         let make_row = |spans: Vec<Span<'static>>| Line::from(spans);
 
-        // Title line rendered inside the box: ">_ OpenAI Codex (vX)"
-        let title_spans: Vec<Span<'static>> = vec![
-            Span::from(">_ ").dim(),
-            Span::from("OpenAI Codex").bold(),
-            Span::from(" ").dim(),
-            Span::from(format!("(v{})", self.version)).dim(),
-        ];
-
         const CHANGE_MODEL_HINT_COMMAND: &str = "/model";
         const CHANGE_MODEL_HINT_EXPLANATION: &str = " to change";
+        const MODEL_LABEL: &str = "model:";
         const DIR_LABEL: &str = "directory:";
-        let label_width = DIR_LABEL.len();
-        let model_label = format!(
-            "{model_label:<label_width$}",
-            model_label = "model:",
-            label_width = label_width
-        );
+        const VERSION_LABEL: &str = "version:";
+        let label_width = MODEL_LABEL
+            .len()
+            .max(DIR_LABEL.len())
+            .max(VERSION_LABEL.len());
+        let model_label = format!("{MODEL_LABEL:<label_width$}");
         let reasoning_label = self.reasoning_label();
         let mut model_spans: Vec<Span<'static>> = vec![
             Span::from(format!("{model_label} ")).dim(),
@@ -555,12 +548,17 @@ impl HistoryCell for SessionHeaderHistoryCell {
         let dir = self.format_directory(Some(dir_max_width));
         let dir_spans = vec![Span::from(dir_prefix).dim(), Span::from(dir)];
 
-        let lines = vec![
-            make_row(title_spans),
-            make_row(Vec::new()),
-            make_row(model_spans),
-            make_row(dir_spans),
+        let version_label = format!("{VERSION_LABEL:<label_width$}");
+        let version_spans = vec![
+            Span::from(format!("{version_label} ")).dim(),
+            Span::from(format!("v{}", self.version)),
         ];
+
+        let mut lines = Vec::new();
+        lines.push(make_row(model_spans));
+        lines.push(make_row(Vec::new()));
+        lines.push(make_row(version_spans));
+        lines.push(make_row(dir_spans));
 
         with_border(lines)
     }

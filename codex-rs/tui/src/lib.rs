@@ -33,7 +33,6 @@ mod app;
 mod app_backtrack;
 mod app_event;
 mod app_event_sender;
-mod ascii_animation;
 mod bottom_pane;
 mod chatwidget;
 mod citation_regex;
@@ -45,7 +44,6 @@ mod diff_render;
 mod exec_cell;
 mod exec_command;
 mod file_search;
-mod frames;
 mod get_git_diff;
 mod history_cell;
 pub mod insert_history;
@@ -299,66 +297,65 @@ async fn run_ratatui_app(
 
     let mut tui = Tui::new(terminal);
 
-    // Show update banner in terminal history (instead of stderr) so it is visible
-    // within the TUI scrollback. Building spans keeps styling consistent.
+    #[allow(unused_mut)]
+    let mut pending_update_banner: Option<Vec<ratatui::text::Line<'static>>> = None;
+
+    // Capture update banner content so we can insert it after onboarding renders.
     #[cfg(not(debug_assertions))]
-    if let Some(latest_version) = updates::get_upgrade_version(&config) {
-        use crate::history_cell::padded_emoji;
-        use crate::history_cell::with_border_with_inner_width;
-        use ratatui::style::Stylize as _;
-        use ratatui::text::Line;
+    {
+        if let Some(latest_version) = updates::get_upgrade_version(&config) {
+            use crate::history_cell::padded_emoji;
+            use ratatui::style::Stylize as _;
+            use ratatui::text::Line;
 
-        let current_version = env!("CARGO_PKG_VERSION");
-        let exe = std::env::current_exe()?;
-        let managed_by_npm = std::env::var_os("CODEX_MANAGED_BY_NPM").is_some();
+            let current_version = env!("CARGO_PKG_VERSION");
+            let exe = std::env::current_exe()?;
+            let managed_by_npm = std::env::var_os("CODEX_MANAGED_BY_NPM").is_some();
 
-        let mut content_lines: Vec<Line<'static>> = vec![
-            Line::from(vec![
-                padded_emoji("✨").bold().cyan(),
-                "Update available!".bold().cyan(),
-                " ".into(),
-                format!("{current_version} -> {latest_version}.").bold(),
-            ]),
-            Line::from(""),
-            Line::from("See full release notes:"),
-            Line::from(""),
-            Line::from(
-                "https://github.com/openai/codex/releases/latest"
-                    .cyan()
-                    .underlined(),
-            ),
-            Line::from(""),
-        ];
+            let mut content_lines: Vec<Line<'static>> = vec![
+                Line::from(vec![
+                    padded_emoji("✨").bold().cyan(),
+                    "Update available!".bold().cyan(),
+                    " ".into(),
+                    format!("{current_version} -> {latest_version}.").bold(),
+                ]),
+                Line::from(""),
+                Line::from("See full release notes:"),
+                Line::from(""),
+                Line::from(
+                    "https://github.com/openai/codex/releases/latest"
+                        .cyan()
+                        .underlined(),
+                ),
+                Line::from(""),
+            ];
 
-        if managed_by_npm {
-            let npm_cmd = "npm install -g @openai/codex@latest";
-            content_lines.push(Line::from(vec![
-                "Run ".into(),
-                npm_cmd.cyan(),
-                " to update.".into(),
-            ]));
-        } else if cfg!(target_os = "macos")
-            && (exe.starts_with("/opt/homebrew") || exe.starts_with("/usr/local"))
-        {
-            let brew_cmd = "brew upgrade codex";
-            content_lines.push(Line::from(vec![
-                "Run ".into(),
-                brew_cmd.cyan(),
-                " to update.".into(),
-            ]));
-        } else {
-            content_lines.push(Line::from(vec![
-                "See ".into(),
-                "https://github.com/openai/codex".cyan().underlined(),
-                " for installation options.".into(),
-            ]));
+            if managed_by_npm {
+                let npm_cmd = "npm install -g @openai/codex@latest";
+                content_lines.push(Line::from(vec![
+                    "Run ".into(),
+                    npm_cmd.cyan(),
+                    " to update.".into(),
+                ]));
+            } else if cfg!(target_os = "macos")
+                && (exe.starts_with("/opt/homebrew") || exe.starts_with("/usr/local"))
+            {
+                let brew_cmd = "brew upgrade codex";
+                content_lines.push(Line::from(vec![
+                    "Run ".into(),
+                    brew_cmd.cyan(),
+                    " to update.".into(),
+                ]));
+            } else {
+                content_lines.push(Line::from(vec![
+                    "See ".into(),
+                    "https://github.com/openai/codex".cyan().underlined(),
+                    " for installation options.".into(),
+                ]));
+            }
+
+            pending_update_banner = Some(content_lines);
         }
-
-        let viewport_width = tui.terminal.viewport_area.width as usize;
-        let inner_width = viewport_width.saturating_sub(4).max(1);
-        let mut lines = with_border_with_inner_width(content_lines, inner_width);
-        lines.push("".into());
-        tui.insert_history_lines(lines);
     }
 
     // Initialize high-fidelity session event logging if enabled.
@@ -406,6 +403,15 @@ async fn run_ratatui_app(
             config.approval_policy = AskForApproval::OnRequest;
             config.sandbox_policy = SandboxPolicy::new_workspace_write_policy();
         }
+    }
+
+    if let Some(content_lines) = pending_update_banner {
+        use crate::history_cell::with_border_with_inner_width;
+        let viewport_width = tui.terminal.viewport_area.width as usize;
+        let inner_width = viewport_width.saturating_sub(4).max(1);
+        let mut lines = with_border_with_inner_width(content_lines, inner_width);
+        lines.push("".into());
+        tui.insert_history_lines(lines);
     }
 
     // Determine resume behavior: explicit id, then resume last, then picker.

@@ -88,10 +88,10 @@ impl OnboardingScreen {
         if show_windows_wsl_screen {
             steps.push(Step::Windows(WindowsSetupWidget::new(codex_home.clone())));
         }
-        steps.push(Step::Welcome(WelcomeWidget::new(
-            !matches!(login_status, LoginStatus::NotAuthenticated),
-            tui.frame_requester(),
-        )));
+        steps.push(Step::Welcome(WelcomeWidget::new(!matches!(
+            login_status,
+            LoginStatus::NotAuthenticated
+        ))));
         if show_login_screen {
             steps.push(Step::Auth(AuthModeWidget {
                 request_frame: tui.frame_requester(),
