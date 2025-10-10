@@ -1,0 +1,141 @@
+name: Build Homebrew Bottles
+
+on:
+  workflow_dispatch:
+    inputs:
+      formula_version:
+        description: 'Formula version to build bottles for'
+        required: true
+        type: string
+  workflow_run:
+    workflows: ["Homebrew Release"]
+    types:
+      - completed
+
+jobs:
+  build-bottles:
+    name: Build Bottles
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            name: ventura
+          - os: macos-14
+            name: sonoma
+          - os: ubuntu-22.04
+            name: x86_64_linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+      
+      - name: Tap the formula repository
+        run: |
+          brew tap cchuter/osmiflow
+      
+      - name: Build bottle
+        run: |
+          brew install --build-bottle cchuter/osmiflow/osmiflow
+          brew bottle --json --root-url=https://github.com/cchuter/codex/releases/download cchuter/osmiflow/osmiflow
+      
+      - name: Upload bottle
+        uses: actions/upload-artifact@v3
+        with:
+          name: bottle-${{ matrix.name }}
+          path: "*.bottle.*"
+
+  upload-bottles:
+    name: Upload Bottles to Release
+    needs: build-bottles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: cchuter/homebrew-osmiflow
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-osmiflow
+      
+      - name: Download all bottles
+        uses: actions/download-artifact@v3
+        with:
+          path: bottles
+      
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.formula_version }}" >> $GITHUB_OUTPUT
+          else
+            # Get version from the latest release
+            VERSION=$(curl -s https://api.github.com/repos/cchuter/codex/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload bottles to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          RELEASE_ID=$(curl -s https://api.github.com/repos/cchuter/codex/releases/tags/v${VERSION} | jq -r '.id')
+          
+          for bottle_dir in bottles/bottle-*; do
+            for bottle_file in $bottle_dir/*.bottle.*; do
+              if [ -f "$bottle_file" ]; then
+                asset_name=$(basename "$bottle_file")
+                echo "Uploading $asset_name to release"
+                curl -X POST \
+                  -H "Authorization: token $GITHUB_TOKEN" \
+                  -H "Content-Type: application/octet-stream" \
+                  --data-binary @"$bottle_file" \
+                  "https://uploads.github.com/repos/cchuter/codex/releases/${RELEASE_ID}/assets?name=${asset_name}"
+              fi
+            done
+          done
+      
+      - name: Update formula with bottle DSL
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          
+          # Parse bottle JSON files and create bottle DSL
+          BOTTLE_DSL=""
+          for bottle_dir in bottles/bottle-*; do
+            for json_file in $bottle_dir/*.json; do
+              if [ -f "$json_file" ]; then
+                # Extract bottle information from JSON
+                OS_VERSION=$(jq -r '.osmiflow.bottle.tags | keys[0]' "$json_file")
+                SHA256=$(jq -r ".osmiflow.bottle.tags.\"$OS_VERSION\".sha256" "$json_file")
+                
+                if [[ "$OS_VERSION" == *"linux"* ]]; then
+                  BOTTLE_DSL="${BOTTLE_DSL}    sha256 cellar: :any_skip_relocation, x86_64_linux: \"$SHA256\"\n"
+                else
+                  BOTTLE_DSL="${BOTTLE_DSL}    sha256 cellar: :any_skip_relocation, $OS_VERSION: \"$SHA256\"\n"
+                fi
+              fi
+            done
+          done
+          
+          # Update formula with bottle DSL
+          cd homebrew-osmiflow
+          
+          # Insert bottle block after the license line
+          awk -v bottle="$BOTTLE_DSL" '
+            /license/ {
+              print
+              print ""
+              print "  bottle do"
+              print "    root_url \"https://github.com/cchuter/codex/releases/download/v'$VERSION'\""
+              printf "%s", bottle
+              print "  end"
+              next
+            }
+            { print }
+          ' Formula/osmiflow.rb > Formula/osmiflow.rb.tmp
+          
+          mv Formula/osmiflow.rb.tmp Formula/osmiflow.rb
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/osmiflow.rb
+          git commit -m "Add bottles for osmiflow version $VERSION"
+          git push

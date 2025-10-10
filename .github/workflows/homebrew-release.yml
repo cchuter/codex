@@ -1,0 +1,193 @@
+name: Homebrew Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-binaries:
+    name: Build Binaries
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: osmiflow-darwin-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            name: osmiflow-darwin-amd64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: osmiflow-linux-amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          components: rustfmt, clippy
+      
+      - name: Build release binary
+        working-directory: codex-rs
+        run: |
+          cargo build --release --target ${{ matrix.target }} --bin codex
+          
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp codex-rs/target/${{ matrix.target }}/release/codex dist/osmiflow
+          cd dist
+          tar -czf ${{ matrix.name }}.tar.gz osmiflow
+          shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
+          
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}.tar.gz*
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: OsmiFlow ${{ steps.get_version.outputs.version }}
+          body: |
+            OsmiFlow ${{ steps.get_version.outputs.version }}
+            
+            ## Installation
+            
+            ### Homebrew
+            ```bash
+            brew tap cchuter/osmiflow
+            brew install osmiflow
+            ```
+            
+            ### Direct Download
+            Download the appropriate binary for your platform from the assets below.
+          draft: false
+          prerelease: false
+      
+      - name: Upload Release Assets
+        run: |
+          for artifact in artifacts/*; do
+            for file in $artifact/*; do
+              asset_name=$(basename "$file")
+              echo "Uploading $asset_name"
+              curl -X POST \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @"$file" \
+                "${{ steps.create_release.outputs.upload_url }}?name=$asset_name"
+            done
+          done
+
+  update-homebrew-formula:
+    name: Update Homebrew Formula
+    needs: [build-binaries, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: cchuter/homebrew-osmiflow
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-osmiflow
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      
+      - name: Generate formula
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          
+          # Get SHA256 checksums
+          DARWIN_ARM64_SHA=$(cat artifacts/osmiflow-darwin-arm64/osmiflow-darwin-arm64.tar.gz.sha256 | cut -d' ' -f1)
+          DARWIN_AMD64_SHA=$(cat artifacts/osmiflow-darwin-amd64/osmiflow-darwin-amd64.tar.gz.sha256 | cut -d' ' -f1)
+          LINUX_AMD64_SHA=$(cat artifacts/osmiflow-linux-amd64/osmiflow-linux-amd64.tar.gz.sha256 | cut -d' ' -f1)
+          
+          # Create Formula
+          cat > homebrew-osmiflow/Formula/osmiflow.rb << EOF
+          class Osmiflow < Formula
+            desc "AI-powered coding assistant built on Codex"
+            homepage "https://github.com/cchuter/codex"
+            version "${VERSION}"
+            license "Apache-2.0"
+          
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/cchuter/codex/releases/download/v${VERSION}/osmiflow-darwin-arm64.tar.gz"
+                sha256 "${DARWIN_ARM64_SHA}"
+              else
+                url "https://github.com/cchuter/codex/releases/download/v${VERSION}/osmiflow-darwin-amd64.tar.gz"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+          
+            on_linux do
+              if Hardware::CPU.intel?
+                url "https://github.com/cchuter/codex/releases/download/v${VERSION}/osmiflow-linux-amd64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+              else
+                odie "osmiflow is not available for Linux ARM architecture"
+              end
+            end
+          
+            def install
+              bin.install "osmiflow"
+            end
+          
+            test do
+              assert_match "osmiflow", shell_output("#{bin}/osmiflow --version")
+            end
+          end
+          EOF
+      
+      - name: Commit and push formula
+        working-directory: homebrew-osmiflow
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/osmiflow.rb
+          git commit -m "Update osmiflow to version ${{ needs.create-release.outputs.version }}"
+          git push
