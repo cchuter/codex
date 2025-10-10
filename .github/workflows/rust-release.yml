@@ -1,4 +1,4 @@
-# Release workflow for codex-rs.
+# Release workflow for osmiflow (codex-rs).
 # To release, follow a workflow like:
 # ```
 # git tag -a rust-v0.1.0 -m "Release 0.1.0"
@@ -106,11 +106,11 @@ jobs:
           mkdir -p "$dest"
 
           if [[ "${{ matrix.runner }}" == windows* ]]; then
-            cp target/${{ matrix.target }}/release/codex.exe "$dest/codex-${{ matrix.target }}.exe"
-            cp target/${{ matrix.target }}/release/codex-responses-api-proxy.exe "$dest/codex-responses-api-proxy-${{ matrix.target }}.exe"
+            cp target/${{ matrix.target }}/release/codex.exe "$dest/osmiflow-${{ matrix.target }}.exe"
+            cp target/${{ matrix.target }}/release/codex-responses-api-proxy.exe "$dest/osmiflow-responses-api-proxy-${{ matrix.target }}.exe"
           else
-            cp target/${{ matrix.target }}/release/codex "$dest/codex-${{ matrix.target }}"
-            cp target/${{ matrix.target }}/release/codex-responses-api-proxy "$dest/codex-responses-api-proxy-${{ matrix.target }}"
+            cp target/${{ matrix.target }}/release/codex "$dest/osmiflow-${{ matrix.target }}"
+            cp target/${{ matrix.target }}/release/codex-responses-api-proxy "$dest/osmiflow-responses-api-proxy-${{ matrix.target }}"
           fi
 
       - if: ${{ matrix.runner == 'windows-11-arm' }}
@@ -128,9 +128,9 @@ jobs:
           # For compatibility with environments that lack the `zstd` tool we
           # additionally create a `.tar.gz` for all platforms and `.zip` for
           # Windows alongside every single binary that we publish. The end result is:
-          #   codex-<target>.zst          (existing)
-          #   codex-<target>.tar.gz       (new)
-          #   codex-<target>.zip          (only for Windows)
+          #   osmiflow-<target>.zst          (existing)
+          #   osmiflow-<target>.tar.gz       (new)
+          #   osmiflow-<target>.zip          (only for Windows)
 
           # 1. Produce a .tar.gz for every file in the directory *before* we
           #    run `zstd --rm`, because that flag deletes the original files.
@@ -293,15 +293,15 @@ jobs:
           mkdir -p dist/npm
           gh release download "$tag" \
             --repo "${GITHUB_REPOSITORY}" \
-            --pattern "codex-npm-${version}.tgz" \
+            --pattern "osmiflow-npm-${version}.tgz" \
             --dir dist/npm
           gh release download "$tag" \
             --repo "${GITHUB_REPOSITORY}" \
-            --pattern "codex-responses-api-proxy-npm-${version}.tgz" \
+            --pattern "osmiflow-responses-api-proxy-npm-${version}.tgz" \
             --dir dist/npm
           gh release download "$tag" \
             --repo "${GITHUB_REPOSITORY}" \
-            --pattern "codex-sdk-npm-${version}.tgz" \
+            --pattern "osmiflow-sdk-npm-${version}.tgz" \
             --dir dist/npm
 
       # No NODE_AUTH_TOKEN needed because we use OIDC.
@@ -317,9 +317,9 @@ jobs:
           fi
 
           tarballs=(
-            "codex-npm-${VERSION}.tgz"
-            "codex-responses-api-proxy-npm-${VERSION}.tgz"
-            "codex-sdk-npm-${VERSION}.tgz"
+            "osmiflow-npm-${VERSION}.tgz"
+            "osmiflow-responses-api-proxy-npm-${VERSION}.tgz"
+            "osmiflow-sdk-npm-${VERSION}.tgz"
           )
 
           for tarball in "${tarballs[@]}"; do

@@ -1,5 +1,5 @@
 class Osmiflow < Formula
-  desc "AI-powered coding assistant built on Codex"
+  desc "AI-powered coding assistant"
   homepage "https://github.com/cchuter/codex"
   version "VERSION_PLACEHOLDER"
   license "Apache-2.0"

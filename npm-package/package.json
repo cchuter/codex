@@ -1,7 +1,7 @@
 {
   "name": "@osmi/osmiflow",
   "version": "0.0.0-development",
-  "description": "AI-powered coding assistant built on Codex",
+  "description": "AI-powered coding assistant",
   "keywords": ["ai", "coding", "assistant", "cli", "developer-tools"],
   "homepage": "https://github.com/cchuter/codex",
   "bugs": {

@@ -1,6 +1,6 @@
 # OsmiFlow
 
-AI-powered coding assistant built on Codex.
+AI-powered coding assistant.
 
 ## Installation
 
