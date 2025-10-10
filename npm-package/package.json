@@ -1,5 +1,5 @@
 {
-  "name": "@osmi/osmiflow",
+  "name": "@osmiai/osmiflow",
   "version": "0.0.0-development",
   "description": "AI-powered coding assistant",
   "keywords": ["ai", "coding", "assistant", "cli", "developer-tools"],
