@@ -4,10 +4,10 @@
 
 Because Codex is written in Rust, it honors the `RUST_LOG` environment variable to configure its logging behavior.
 
-The TUI defaults to `RUST_LOG=codex_core=info,codex_tui=info` and log messages are written to `~/.codex/log/codex-tui.log`, so you can leave the following running in a separate terminal to monitor log messages as they are written:
+The TUI defaults to `RUST_LOG=codex_core=info,codex_tui=info` and log messages are written to `~/.osmiflow/log/codex-tui.log`, so you can leave the following running in a separate terminal to monitor log messages as they are written:
 
 ```
-tail -F ~/.codex/log/codex-tui.log
+tail -F ~/.osmiflow/log/codex-tui.log
 ```
 
 By comparison, the non-interactive mode (`codex exec`) defaults to `RUST_LOG=error`, but messages are printed inline, so there is no need to monitor a separate file.

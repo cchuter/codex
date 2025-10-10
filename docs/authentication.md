@@ -23,7 +23,7 @@ This key must, at minimum, have write access to the Responses API.
 If you've used the Codex CLI before with usage-based billing via an API key and want to switch to using your ChatGPT plan, follow these steps:
 
 1. Update the CLI and ensure `codex --version` is `0.20.0` or later
-2. Delete `~/.codex/auth.json` (on Windows: `C:\\Users\\USERNAME\\.codex\\auth.json`)
+2. Delete `~/.osmiflow/auth.json` (on Windows: `C:\\Users\\USERNAME\\.osmiflow\\auth.json`)
 3. Run `codex login` again
 
 ## Connecting on a "Headless" Machine
@@ -32,28 +32,28 @@ Today, the login process entails running a server on `localhost:1455`. If you ar
 
 ### Authenticate locally and copy your credentials to the "headless" machine
 
-The easiest solution is likely to run through the `codex login` process on your local machine such that `localhost:1455` _is_ accessible in your web browser. When you complete the authentication process, an `auth.json` file should be available at `$CODEX_HOME/auth.json` (on Mac/Linux, `$CODEX_HOME` defaults to `~/.codex` whereas on Windows, it defaults to `%USERPROFILE%\\.codex`).
+The easiest solution is likely to run through the `codex login` process on your local machine such that `localhost:1455` _is_ accessible in your web browser. When you complete the authentication process, an `auth.json` file should be available at `$CODEX_HOME/auth.json` (on Mac/Linux, `$CODEX_HOME` defaults to `~/.osmiflow` whereas on Windows, it defaults to `%USERPROFILE%\\.osmiflow`).
 
 Because the `auth.json` file is not tied to a specific host, once you complete the authentication flow locally, you can copy the `$CODEX_HOME/auth.json` file to the headless machine and then `codex` should "just work" on that machine. Note to copy a file to a Docker container, you can do:
 
 ```shell
 # substitute MY_CONTAINER with the name or id of your Docker container:
 CONTAINER_HOME=$(docker exec MY_CONTAINER printenv HOME)
-docker exec MY_CONTAINER mkdir -p "$CONTAINER_HOME/.codex"
-docker cp auth.json MY_CONTAINER:"$CONTAINER_HOME/.codex/auth.json"
+docker exec MY_CONTAINER mkdir -p "$CONTAINER_HOME/.osmiflow"
+docker cp auth.json MY_CONTAINER:"$CONTAINER_HOME/.osmiflow/auth.json"
 ```
 
 whereas if you are `ssh`'d into a remote machine, you likely want to use [`scp`](https://en.wikipedia.org/wiki/Secure_copy_protocol):
 
 ```shell
-ssh user@remote 'mkdir -p ~/.codex'
-scp ~/.codex/auth.json user@remote:~/.codex/auth.json
+ssh user@remote 'mkdir -p ~/.osmiflow'
+scp ~/.osmiflow/auth.json user@remote:~/.osmiflow/auth.json
 ```
 
 or try this one-liner:
 
 ```shell
-ssh user@remote 'mkdir -p ~/.codex && cat > ~/.codex/auth.json' < ~/.codex/auth.json
+ssh user@remote 'mkdir -p ~/.osmiflow && cat > ~/.osmiflow/auth.json' < ~/.osmiflow/auth.json
 ```
 
 ### Connecting through VPS or remote

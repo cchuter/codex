@@ -1,0 +1,310 @@
+name: Homebrew Release
+
+on:
+  workflow_run:
+    workflows: ["rust-release"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+      tag:
+        description: 'Git tag (e.g., rust-v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  get-release-info:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    name: Get Release Info
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_info.outputs.version }}
+      tag: ${{ steps.get_info.outputs.tag }}
+    steps:
+      - name: Get release information
+        id: get_info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            # Get the latest release tag that matches rust-v*
+            TAG=$(gh api repos/${{ github.repository }}/releases --jq '.[0].tag_name' | grep '^rust-v' || echo "")
+            if [[ -z "$TAG" ]]; then
+              echo "No matching release found"
+              exit 1
+            fi
+            VERSION="${TAG#rust-v}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
+  build-homebrew-binaries:
+    needs: get-release-info
+    name: Build Homebrew Binaries
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: osmiflow-darwin-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            name: osmiflow-darwin-amd64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: osmiflow-linux-amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.get-release-info.outputs.tag }}
+      
+      - name: Download release binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download the compressed binary from the release
+          gh release download ${{ needs.get-release-info.outputs.tag }} \
+            --repo ${{ github.repository }} \
+            --pattern "osmiflow-${{ matrix.target }}.tar.gz" \
+            --dir .
+          
+          # Extract and rename
+          tar -xzf osmiflow-${{ matrix.target }}.tar.gz
+          mv osmiflow-${{ matrix.target }} osmiflow
+          
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ matrix.name }}.tar.gz osmiflow
+          cd dist
+          shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
+          
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}.tar.gz*
+
+  upload-homebrew-assets:
+    name: Upload Homebrew Assets to Release
+    needs: [get-release-info, build-homebrew-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.get-release-info.outputs.tag }}"
+          
+          # Upload each homebrew binary to the existing release
+          for artifact in artifacts/*; do
+            for file in $artifact/*; do
+              asset_name=$(basename "$file")
+              echo "Uploading $asset_name to release $TAG"
+              gh release upload "$TAG" "$file" \
+                --repo ${{ github.repository }} \
+                --clobber
+            done
+          done
+
+  update-homebrew-formula:
+    name: Update Homebrew Formula
+    needs: [get-release-info, upload-homebrew-assets]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: cchuter/homebrew-osmiflow
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-osmiflow
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      
+      - name: Generate formula
+        run: |
+          VERSION="${{ needs.get-release-info.outputs.version }}"
+          TAG="${{ needs.get-release-info.outputs.tag }}"
+          
+          # Get SHA256 checksums
+          DARWIN_ARM64_SHA=$(cat artifacts/osmiflow-darwin-arm64/osmiflow-darwin-arm64.tar.gz.sha256 | cut -d' ' -f1)
+          DARWIN_AMD64_SHA=$(cat artifacts/osmiflow-darwin-amd64/osmiflow-darwin-amd64.tar.gz.sha256 | cut -d' ' -f1)
+          LINUX_AMD64_SHA=$(cat artifacts/osmiflow-linux-amd64/osmiflow-linux-amd64.tar.gz.sha256 | cut -d' ' -f1)
+          
+          # Create Formula
+          cat > homebrew-osmiflow/Formula/osmiflow.rb << EOF
+          class Osmiflow < Formula
+            desc "AI-powered coding assistant"
+            homepage "https://github.com/cchuter/codex"
+            version "${VERSION}"
+            license "Apache-2.0"
+          
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/${{ github.repository }}/releases/download/${TAG}/osmiflow-darwin-arm64.tar.gz"
+                sha256 "${DARWIN_ARM64_SHA}"
+              else
+                url "https://github.com/${{ github.repository }}/releases/download/${TAG}/osmiflow-darwin-amd64.tar.gz"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+          
+            on_linux do
+              if Hardware::CPU.intel?
+                url "https://github.com/${{ github.repository }}/releases/download/${TAG}/osmiflow-linux-amd64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+              else
+                odie "osmiflow is not available for Linux ARM architecture"
+              end
+            end
+          
+            def install
+              bin.install "osmiflow"
+            end
+          
+            test do
+              assert_match "osmiflow", shell_output("#{bin}/osmiflow --version")
+            end
+          end
+          EOF
+      
+      - name: Commit and push formula
+        working-directory: homebrew-osmiflow
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/osmiflow.rb
+          git commit -m "Update osmiflow to version ${{ needs.get-release-info.outputs.version }}" || echo "No changes to commit"
+          git push
+
+  build-bottles:
+    name: Build Bottles
+    needs: [get-release-info, update-homebrew-formula]
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            name: ventura
+          - os: macos-14
+            name: sonoma
+          - os: ubuntu-22.04
+            name: x86_64_linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+      
+      - name: Tap the formula repository
+        run: |
+          brew tap cchuter/osmiflow
+      
+      - name: Build bottle
+        run: |
+          brew install --build-bottle cchuter/osmiflow/osmiflow
+          brew bottle --json --root-url=https://github.com/${{ github.repository }}/releases/download cchuter/osmiflow/osmiflow
+      
+      - name: Upload bottle
+        uses: actions/upload-artifact@v3
+        with:
+          name: bottle-${{ matrix.name }}
+          path: "*.bottle.*"
+
+  upload-bottles:
+    name: Upload Bottles to Release
+    needs: [get-release-info, build-bottles]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: cchuter/homebrew-osmiflow
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-osmiflow
+      
+      - name: Download all bottles
+        uses: actions/download-artifact@v3
+        with:
+          path: bottles
+      
+      - name: Upload bottles to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.get-release-info.outputs.tag }}"
+          
+          for bottle_dir in bottles/bottle-*; do
+            for bottle_file in $bottle_dir/*.bottle.*; do
+              if [ -f "$bottle_file" ]; then
+                asset_name=$(basename "$bottle_file")
+                echo "Uploading $asset_name to release"
+                gh release upload "$TAG" "$bottle_file" \
+                  --repo ${{ github.repository }} \
+                  --clobber
+              fi
+            done
+          done
+      
+      - name: Update formula with bottle DSL
+        run: |
+          VERSION="${{ needs.get-release-info.outputs.version }}"
+          TAG="${{ needs.get-release-info.outputs.tag }}"
+          
+          # Parse bottle JSON files and create bottle DSL
+          BOTTLE_DSL=""
+          for bottle_dir in bottles/bottle-*; do
+            for json_file in $bottle_dir/*.json; do
+              if [ -f "$json_file" ]; then
+                # Extract bottle information from JSON
+                OS_VERSION=$(jq -r '.osmiflow.bottle.tags | keys[0]' "$json_file")
+                SHA256=$(jq -r ".osmiflow.bottle.tags.\"$OS_VERSION\".sha256" "$json_file")
+                
+                if [[ "$OS_VERSION" == *"linux"* ]]; then
+                  BOTTLE_DSL="${BOTTLE_DSL}    sha256 cellar: :any_skip_relocation, x86_64_linux: \"$SHA256\"\n"
+                else
+                  BOTTLE_DSL="${BOTTLE_DSL}    sha256 cellar: :any_skip_relocation, $OS_VERSION: \"$SHA256\"\n"
+                fi
+              fi
+            done
+          done
+          
+          # Update formula with bottle DSL
+          cd homebrew-osmiflow
+          
+          # Insert bottle block after the license line
+          awk -v bottle="$BOTTLE_DSL" -v tag="$TAG" '
+            /license/ {
+              print
+              print ""
+              print "  bottle do"
+              print "    root_url \"https://github.com/${{ github.repository }}/releases/download/" tag "\""
+              printf "%s", bottle
+              print "  end"
+              next
+            }
+            { print }
+          ' Formula/osmiflow.rb > Formula/osmiflow.rb.tmp
+          
+          mv Formula/osmiflow.rb.tmp Formula/osmiflow.rb
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/osmiflow.rb
+          git commit -m "Add bottles for osmiflow version $VERSION" || echo "No changes to commit"
+          git push

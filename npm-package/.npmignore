@@ -1,0 +1,13 @@
+# Development files
+build.js
+.gitignore
+
+# Source code
+../codex-rs/
+
+# Build artifacts (except binaries)
+*.log
+*.tmp
+.DS_Store
+
+# Keep only the necessary binaries in bin/

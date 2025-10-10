@@ -65,7 +65,7 @@ Codex can access MCP servers. To configure them, refer to the [config docs](./do
 
 ### Configuration
 
-Codex CLI supports a rich set of configuration options, with preferences stored in `~/.codex/config.toml`. For full configuration options, see [Configuration](./docs/config.md).
+Codex CLI supports a rich set of configuration options, with preferences stored in `~/.osmiflow/config.toml`. For full configuration options, see [Configuration](./docs/config.md).
 
 ---
 

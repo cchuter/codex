@@ -1,0 +1,46 @@
+{
+  "name": "@osmiai/osmiflow",
+  "version": "0.0.1",
+  "description": "AI-powered coding assistant",
+  "keywords": ["ai", "coding", "assistant", "cli", "developer-tools"],
+  "homepage": "https://github.com/cchuter/codex",
+  "bugs": {
+    "url": "https://github.com/cchuter/codex/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cchuter/codex.git"
+  },
+  "license": "Apache-2.0",
+  "author": "cchuter",
+  "main": "index.js",
+  "bin": {
+    "osmiflow": "bin/osmiflow"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js",
+    "prepublishOnly": "node build.js"
+  },
+  "files": [
+    "bin/",
+    "index.js",
+    "postinstall.js",
+    "build.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

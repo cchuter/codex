@@ -85,7 +85,7 @@ console.log(turn.finalResponse);
 
 ### Resuming an existing thread
 
-Threads are persisted in `~/.codex/sessions`. If you lose the in-memory `Thread` object, reconstruct it with `resumeThread()` and keep going.
+Threads are persisted in `~/.osmiflow/sessions`. If you lose the in-memory `Thread` object, reconstruct it with `resumeThread()` and keep going.
 
 ```typescript
 const savedThreadId = process.env.CODEX_THREAD_ID!;
