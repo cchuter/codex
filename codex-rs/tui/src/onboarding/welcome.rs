@@ -30,15 +30,20 @@ lazy_static! {
 fn render_gala_logo_ascii() -> Vec<String> {
     const SVG: &str = include_str!("../../../docs/gala_logo.svg");
     let opts = Options::default();
-    let tree = resvg::usvg::Tree::from_str(SVG, &opts).expect("failed to parse gala logo svg");
+    let tree = match resvg::usvg::Tree::from_str(SVG, &opts) {
+        Ok(tree) => tree,
+        Err(_) => return Vec::new(), // Return empty logo on parse error
+    };
 
-    let mut pixmap =
-        Pixmap::new(LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT).expect("failed to allocate pixmap");
+    let mut pixmap = match Pixmap::new(LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT) {
+        Some(pixmap) => pixmap,
+        None => return Vec::new(), // Return empty logo on allocation failure
+    };
     pixmap.fill(resvg::tiny_skia::Color::from_rgba8(0, 0, 0, 0));
 
     let svg_size = tree.size();
-    let svg_width = svg_size.width() as f32;
-    let svg_height = svg_size.height() as f32;
+    let svg_width = svg_size.width();
+    let svg_height = svg_size.height();
     let scale = (LOGO_RENDER_WIDTH as f32 / svg_width).min(LOGO_RENDER_HEIGHT as f32 / svg_height);
     let translate_x = (LOGO_RENDER_WIDTH as f32 - svg_width * scale) / 2.0;
     let translate_y = (LOGO_RENDER_HEIGHT as f32 - svg_height * scale) / 2.0;

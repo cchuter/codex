@@ -554,11 +554,12 @@ impl HistoryCell for SessionHeaderHistoryCell {
             Span::from(format!("v{}", self.version)),
         ];
 
-        let mut lines = Vec::new();
-        lines.push(make_row(model_spans));
-        lines.push(make_row(Vec::new()));
-        lines.push(make_row(version_spans));
-        lines.push(make_row(dir_spans));
+        let lines = vec![
+            make_row(model_spans),
+            make_row(Vec::new()),
+            make_row(version_spans),
+            make_row(dir_spans),
+        ];
 
         with_border(lines)
     }
