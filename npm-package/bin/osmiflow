@@ -1,0 +1,2 @@
+#\!/usr/bin/env node
+console.log("OsmiFlow CLI - Binary will be installed on first run");
