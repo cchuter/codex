@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 1.0.0)'
+        description: "Version to release (e.g., 1.0.0)"
         required: true
         type: string
       tag:
-        description: 'Git tag (e.g., rust-v1.0.0)'
+        description: "Git tag (e.g., rust-v1.0.0)"
         required: true
         type: string
 
@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.get-release-info.outputs.tag }}
-      
+
       - name: Download release binary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,18 +76,18 @@ jobs:
             --repo ${{ github.repository }} \
             --pattern "osmiflow-${{ matrix.target }}.tar.gz" \
             --dir .
-          
+
           # Extract and rename
           tar -xzf osmiflow-${{ matrix.target }}.tar.gz
           mv osmiflow-${{ matrix.target }} osmiflow
-          
+
       - name: Package binary
         run: |
           mkdir -p dist
           tar -czf dist/${{ matrix.name }}.tar.gz osmiflow
           cd dist
           shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
-          
+
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
@@ -103,13 +103,13 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: artifacts
-      
+
       - name: Upload assets to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ needs.get-release-info.outputs.tag }}"
-          
+
           # Upload each homebrew binary to the existing release
           for artifact in artifacts/*; do
             for file in $artifact/*; do
@@ -132,22 +132,22 @@ jobs:
           repository: cchuter/homebrew-osmiflow
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-osmiflow
-      
+
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
           path: artifacts
-      
+
       - name: Generate formula
         run: |
           VERSION="${{ needs.get-release-info.outputs.version }}"
           TAG="${{ needs.get-release-info.outputs.tag }}"
-          
+
           # Get SHA256 checksums
           DARWIN_ARM64_SHA=$(cat artifacts/osmiflow-darwin-arm64/osmiflow-darwin-arm64.tar.gz.sha256 | cut -d' ' -f1)
           DARWIN_AMD64_SHA=$(cat artifacts/osmiflow-darwin-amd64/osmiflow-darwin-amd64.tar.gz.sha256 | cut -d' ' -f1)
           LINUX_AMD64_SHA=$(cat artifacts/osmiflow-linux-amd64/osmiflow-linux-amd64.tar.gz.sha256 | cut -d' ' -f1)
-          
+
           # Create Formula
           cat > homebrew-osmiflow/Formula/osmiflow.rb << EOF
           class Osmiflow < Formula
@@ -155,7 +155,7 @@ jobs:
             homepage "https://github.com/cchuter/codex"
             version "${VERSION}"
             license "Apache-2.0"
-          
+
             on_macos do
               if Hardware::CPU.arm?
                 url "https://github.com/${{ github.repository }}/releases/download/${TAG}/osmiflow-darwin-arm64.tar.gz"
@@ -165,7 +165,7 @@ jobs:
                 sha256 "${DARWIN_AMD64_SHA}"
               end
             end
-          
+
             on_linux do
               if Hardware::CPU.intel?
                 url "https://github.com/${{ github.repository }}/releases/download/${TAG}/osmiflow-linux-amd64.tar.gz"
@@ -174,17 +174,17 @@ jobs:
                 odie "osmiflow is not available for Linux ARM architecture"
               end
             end
-          
+
             def install
               bin.install "osmiflow"
             end
-          
+
             test do
               assert_match "osmiflow", shell_output("#{bin}/osmiflow --version")
             end
           end
           EOF
-      
+
       - name: Commit and push formula
         working-directory: homebrew-osmiflow
         run: |
@@ -210,16 +210,16 @@ jobs:
     steps:
       - name: Setup Homebrew
         uses: Homebrew/actions/setup-homebrew@master
-      
+
       - name: Tap the formula repository
         run: |
           brew tap cchuter/osmiflow
-      
+
       - name: Build bottle
         run: |
           brew install --build-bottle cchuter/osmiflow/osmiflow
           brew bottle --json --root-url=https://github.com/${{ github.repository }}/releases/download cchuter/osmiflow/osmiflow
-      
+
       - name: Upload bottle
         uses: actions/upload-artifact@v3
         with:
@@ -237,18 +237,18 @@ jobs:
           repository: cchuter/homebrew-osmiflow
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-osmiflow
-      
+
       - name: Download all bottles
         uses: actions/download-artifact@v3
         with:
           path: bottles
-      
+
       - name: Upload bottles to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ needs.get-release-info.outputs.tag }}"
-          
+
           for bottle_dir in bottles/bottle-*; do
             for bottle_file in $bottle_dir/*.bottle.*; do
               if [ -f "$bottle_file" ]; then
@@ -260,12 +260,12 @@ jobs:
               fi
             done
           done
-      
+
       - name: Update formula with bottle DSL
         run: |
           VERSION="${{ needs.get-release-info.outputs.version }}"
           TAG="${{ needs.get-release-info.outputs.tag }}"
-          
+
           # Parse bottle JSON files and create bottle DSL
           BOTTLE_DSL=""
           for bottle_dir in bottles/bottle-*; do
@@ -283,10 +283,10 @@ jobs:
               fi
             done
           done
-          
+
           # Update formula with bottle DSL
           cd homebrew-osmiflow
-          
+
           # Insert bottle block after the license line
           awk -v bottle="$BOTTLE_DSL" -v tag="$TAG" '
             /license/ {
@@ -300,9 +300,9 @@ jobs:
             }
             { print }
           ' Formula/osmiflow.rb > Formula/osmiflow.rb.tmp
-          
+
           mv Formula/osmiflow.rb.tmp Formula/osmiflow.rb
-          
+
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add Formula/osmiflow.rb
