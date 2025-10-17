@@ -1,28 +1,32 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 const { platform, arch } = process;
 
 // Map Node.js arch to our binary naming
 const archMap = {
-  'x64': 'x64',
-  'arm64': 'arm64',
-  'ia32': 'x86',
-  'arm': 'arm'
+  x64: "x64",
+  arm64: "arm64",
+  ia32: "x86",
+  arm: "arm",
 };
 
 const platformMap = {
-  'darwin': 'darwin',
-  'linux': 'linux',
-  'win32': 'win32'
+  darwin: "darwin",
+  linux: "linux",
+  win32: "win32",
 };
 
 const mappedArch = archMap[arch] || arch;
 const mappedPlatform = platformMap[platform] || platform;
 
-const binaryName = `osmiflow-${mappedPlatform}-${mappedArch}${platform === 'win32' ? '.exe' : ''}`;
-const binaryPath = path.join(__dirname, 'bin', binaryName);
-const targetPath = path.join(__dirname, 'bin', `osmiflow${platform === 'win32' ? '.exe' : ''}`);
+const binaryName = `osmiflow-${mappedPlatform}-${mappedArch}${platform === "win32" ? ".exe" : ""}`;
+const binaryPath = path.join(__dirname, "bin", binaryName);
+const targetPath = path.join(
+  __dirname,
+  "bin",
+  `osmiflow${platform === "win32" ? ".exe" : ""}`,
+);
 
 if (!fs.existsSync(binaryPath)) {
   console.error(`
@@ -42,23 +46,23 @@ try {
   if (fs.existsSync(targetPath)) {
     fs.unlinkSync(targetPath);
   }
-  
+
   // Create symlink to the appropriate binary
-  if (platform === 'win32') {
+  if (platform === "win32") {
     // On Windows, copy the file instead of symlinking
     fs.copyFileSync(binaryPath, targetPath);
   } else {
     // On Unix systems, create a symlink
     fs.symlinkSync(binaryName, targetPath);
   }
-  
+
   // Make sure it's executable (Unix only)
-  if (platform !== 'win32') {
+  if (platform !== "win32") {
     fs.chmodSync(targetPath, 0o755);
   }
-  
+
   console.log(`✓ OsmiFlow installed successfully for ${platform}/${arch}`);
 } catch (error) {
-  console.error('Failed to set up OsmiFlow binary:', error);
+  console.error("Failed to set up OsmiFlow binary:", error);
   process.exit(1);
 }

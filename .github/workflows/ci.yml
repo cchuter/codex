@@ -27,6 +27,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Build Rust binaries for npm packaging
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust binaries
+        run: |
+          cd codex-rs
+          cargo build --release --bin codex
+          cd ..
+
       # stage_npm_packages.py requires DotSlash when staging releases.
       - uses: facebook/install-dotslash@v2
 
@@ -36,12 +46,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          OSMIFLOW_VERSION=0.40.0
+          OSMIFLOW_VERSION=0.0.0-ci
           OUTPUT_DIR="${RUNNER_TEMP}"
-          python3 ./scripts/stage_npm_packages.py \
-            --release-version "$OSMIFLOW_VERSION" \
+
+          # Create vendor directory structure for CI builds
+          VENDOR_DIR="${RUNNER_TEMP}/vendor"
+          mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/codex"
+          mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/path"
+
+          # Copy the built binary to vendor directory
+          cp codex-rs/target/release/codex "$VENDOR_DIR/x86_64-unknown-linux-gnu/codex/osmiflow-x86_64-unknown-linux-gnu"
+
+          # Create a placeholder for rg (ripgrep) since it's not built here
+          touch "$VENDOR_DIR/x86_64-unknown-linux-gnu/path/rg"
+
+          # Build the npm package directly without using stage_npm_packages.py
+          # since it requires GitHub workflow artifacts
+          STAGING_DIR="${RUNNER_TEMP}/npm-staging"
+          mkdir -p "$STAGING_DIR"
+
+          python3 ./codex-cli/scripts/build_npm_package.py \
             --package codex \
-            --output-dir "$OUTPUT_DIR"
+            --version "$OSMIFLOW_VERSION" \
+            --staging-dir "$STAGING_DIR" \
+            --vendor-src "$VENDOR_DIR" \
+            --pack-output "$OUTPUT_DIR/osmiflow-npm-${OSMIFLOW_VERSION}.tgz"
+
           PACK_OUTPUT="${OUTPUT_DIR}/osmiflow-npm-${OSMIFLOW_VERSION}.tgz"
           echo "pack_output=$PACK_OUTPUT" >> "$GITHUB_OUTPUT"
 
