@@ -45,12 +45,12 @@ class BinaryComponent:
 
 BINARY_COMPONENTS = {
     "codex": BinaryComponent(
-        artifact_prefix="codex",
+        artifact_prefix="osmiflow",
         dest_dir="codex",
         binary_basename="codex",
     ),
     "codex-responses-api-proxy": BinaryComponent(
-        artifact_prefix="codex-responses-api-proxy",
+        artifact_prefix="osmiflow-responses-api-proxy",
         dest_dir="codex-responses-api-proxy",
         binary_basename="codex-responses-api-proxy",
     ),
