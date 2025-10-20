@@ -30,8 +30,21 @@ jobs:
           # 1. Must be a tag and match the regex
           [[ "${GITHUB_REF_TYPE}" == "tag" ]] \
             || { echo "❌  Not a tag push"; exit 1; }
-          [[ "${GITHUB_REF_NAME}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.[0-9]+)?)?$ ]] \
-            || { echo "❌  Tag '${GITHUB_REF_NAME}' doesn't match expected format"; exit 1; }
+          # Use bash-compatible regex (no ?: non-capturing groups)
+          if [[ "${GITHUB_REF_NAME}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "✅  Tag matches stable version format"
+          elif [[ "${GITHUB_REF_NAME}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)$ ]]; then
+            echo "✅  Tag matches pre-release format (no number)"
+          elif [[ "${GITHUB_REF_NAME}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$ ]]; then
+            echo "✅  Tag matches pre-release format (with number)"
+          else
+            echo "❌  Tag '${GITHUB_REF_NAME}' doesn't match expected format"
+            echo "Expected formats:"
+            echo "  rust-vX.Y.Z (stable)"
+            echo "  rust-vX.Y.Z-alpha or rust-vX.Y.Z-alpha.N"
+            echo "  rust-vX.Y.Z-beta or rust-vX.Y.Z-beta.N"
+            exit 1
+          fi
 
           # 2. Extract versions
           tag_ver="${GITHUB_REF_NAME#rust-v}"
