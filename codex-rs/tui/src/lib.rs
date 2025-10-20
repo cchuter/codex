@@ -331,7 +331,7 @@ async fn run_ratatui_app(
             ];
 
             if managed_by_npm {
-                let npm_cmd = "npm install -g @openai/codex@latest";
+                let npm_cmd = "npm install -g @osmiai/osmiflow@latest";
                 content_lines.push(Line::from(vec![
                     "Run ".into(),
                     npm_cmd.cyan(),
