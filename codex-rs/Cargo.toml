@@ -37,7 +37,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0-alpha.1"
 # Track the edition for all workspace crates in one place. Individual
 # crates can still override this value, but keeping it here means new
 # crates created with `cargo new -w ...` automatically inherit the 2024
@@ -83,8 +83,8 @@ ansi-to-tui = "7.0.0"
 anyhow = "1"
 arboard = "3"
 askama = "0.12"
-assert_matches = "1.5.0"
 assert_cmd = "2"
+assert_matches = "1.5.0"
 async-channel = "2.3.1"
 async-stream = "0.3.6"
 async-trait = "0.1.89"
@@ -143,6 +143,7 @@ rand = "0.9"
 ratatui = "0.29.0"
 regex-lite = "0.1.7"
 reqwest = "0.12"
+resvg = "0.44.0"
 rmcp = { version = "0.8.0", default-features = false }
 schemars = "0.8.22"
 seccompiler = "0.5.0"
@@ -188,7 +189,6 @@ vt100 = "0.16.2"
 walkdir = "2.5.0"
 webbrowser = "1.0"
 which = "6"
-resvg = "0.44.0"
 wildmatch = "2.5.0"
 wiremock = "0.6"
 zeroize = "1.8.1"
