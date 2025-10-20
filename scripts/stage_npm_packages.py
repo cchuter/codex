@@ -25,6 +25,11 @@ if _SPEC is None or _SPEC.loader is None:
 _BUILD_MODULE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_BUILD_MODULE)
 PACKAGE_NATIVE_COMPONENTS = getattr(_BUILD_MODULE, "PACKAGE_NATIVE_COMPONENTS", {})
+PACKAGE_OUTPUT_PREFIX = {
+    "codex": "osmiflow",
+    "codex-responses-api-proxy": "osmiflow-responses-api-proxy",
+    "codex-sdk": "osmiflow-sdk",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,7 +156,8 @@ def main() -> int:
 
         for package in packages:
             staging_dir = Path(tempfile.mkdtemp(prefix=f"npm-stage-{package}-", dir=runner_temp))
-            pack_output = output_dir / f"{package}-npm-{args.release_version}.tgz"
+            output_prefix = PACKAGE_OUTPUT_PREFIX.get(package, package)
+            pack_output = output_dir / f"{output_prefix}-npm-{args.release_version}.tgz"
 
             cmd = [
                 str(BUILD_SCRIPT),
