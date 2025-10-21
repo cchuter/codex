@@ -34,7 +34,7 @@ jobs:
       - name: Build Rust binaries
         run: |
           cd codex-rs
-          cargo build --release --bin codex
+          cargo build --release --bin osmiflow
           cd ..
 
       # stage_npm_packages.py requires DotSlash when staging releases.
@@ -55,7 +55,7 @@ jobs:
           mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/path"
 
           # Copy the built binary to vendor directory
-          cp codex-rs/target/release/codex "$VENDOR_DIR/x86_64-unknown-linux-gnu/codex/osmiflow-x86_64-unknown-linux-gnu"
+          cp codex-rs/target/release/osmiflow "$VENDOR_DIR/x86_64-unknown-linux-gnu/codex/osmiflow-x86_64-unknown-linux-gnu"
 
           # Create a placeholder for rg (ripgrep) since it's not built here
           touch "$VENDOR_DIR/x86_64-unknown-linux-gnu/path/rg"

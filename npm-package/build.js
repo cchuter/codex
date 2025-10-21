@@ -44,7 +44,7 @@ try {
 
   // Build the Rust binary
   console.log("Building Rust binary...");
-  execSync(`cargo build --release --target ${target} --bin codex`, {
+  execSync(`cargo build --release --target ${target} --bin osmiflow`, {
     stdio: "inherit",
   });
 
@@ -60,7 +60,7 @@ try {
     "target",
     target,
     "release",
-    platform === "win32" ? "codex.exe" : "codex",
+    platform === "win32" ? "osmiflow.exe" : "osmiflow",
   );
 
   const targetBinary = path.join(
