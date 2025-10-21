@@ -29,7 +29,7 @@ rustup component add clippy
 cargo build
 
 # Launch the TUI with a sample prompt.
-cargo run --bin codex -- "explain this codebase to me"
+cargo run --bin osmiflow -- "explain this codebase to me"
 
 # After making changes, ensure the code is clean.
 cargo fmt -- --config imports_granularity=Item

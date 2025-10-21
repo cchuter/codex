@@ -27,7 +27,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.90
 
       - name: build osmiflow
-        run: cargo build --bin codex
+        run: cargo build --bin osmiflow
         working-directory: codex-rs
 
       - name: Install dependencies
