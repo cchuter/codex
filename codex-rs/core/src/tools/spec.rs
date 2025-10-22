@@ -34,7 +34,6 @@ pub(crate) struct ToolsConfig {
 pub(crate) struct ToolsConfigParams<'a> {
     pub(crate) model_family: &'a ModelFamily,
     pub(crate) include_plan_tool: bool,
-    pub(crate) include_apply_patch_tool: bool,
     pub(crate) include_web_search_request: bool,
     pub(crate) use_streamable_shell_tool: bool,
     pub(crate) include_view_image_tool: bool,
@@ -46,7 +45,6 @@ impl ToolsConfig {
         let ToolsConfigParams {
             model_family,
             include_plan_tool,
-            include_apply_patch_tool,
             include_web_search_request,
             use_streamable_shell_tool,
             include_view_image_tool,
@@ -62,12 +60,7 @@ impl ToolsConfig {
 
         let apply_patch_tool_type = match model_family.apply_patch_tool_type {
             Some(ref tool) => Some(tool.clone()),
-            None if *include_apply_patch_tool
-                || model_family.needs_special_apply_patch_instructions =>
-            {
-                Some(ApplyPatchToolType::Function)
-            }
-            None => None,
+            None => Some(ApplyPatchToolType::Function),
         };
 
         Self {
@@ -788,7 +781,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: true,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -798,7 +790,13 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "update_plan", "web_search", "view_image"],
+            &[
+                "unified_exec",
+                "update_plan",
+                "apply_patch",
+                "web_search",
+                "view_image",
+            ],
         );
     }
 
@@ -808,7 +806,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: true,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -818,7 +815,13 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "update_plan", "web_search", "view_image"],
+            &[
+                "unified_exec",
+                "update_plan",
+                "apply_patch",
+                "web_search",
+                "view_image",
+            ],
         );
     }
 
@@ -830,7 +833,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: false,
             use_streamable_shell_tool: false,
             include_view_image_tool: false,
@@ -850,7 +852,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: false,
             use_streamable_shell_tool: false,
             include_view_image_tool: false,
@@ -877,7 +878,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -926,6 +926,7 @@ mod tests {
             &tools,
             &[
                 "unified_exec",
+                "apply_patch",
                 "web_search",
                 "view_image",
                 "test_server/do_something_cool",
@@ -933,7 +934,7 @@ mod tests {
         );
 
         assert_eq!(
-            tools[3].spec,
+            tools[4].spec,
             ToolSpec::Function(ResponsesApiTool {
                 name: "test_server/do_something_cool".to_string(),
                 parameters: JsonSchema::Object {
@@ -982,7 +983,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: false,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1044,6 +1044,7 @@ mod tests {
             &tools,
             &[
                 "unified_exec",
+                "apply_patch",
                 "view_image",
                 "test_server/cool",
                 "test_server/do",
@@ -1059,7 +1060,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1128,7 +1128,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1192,7 +1191,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: true,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1259,7 +1257,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1338,7 +1335,6 @@ mod tests {
         let config = ToolsConfig::new(&ToolsConfigParams {
             model_family: &model_family,
             include_plan_tool: false,
-            include_apply_patch_tool: false,
             include_web_search_request: true,
             use_streamable_shell_tool: false,
             include_view_image_tool: true,
