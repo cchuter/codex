@@ -61,15 +61,13 @@ impl ToolsConfig {
         };
 
         let apply_patch_tool_type = match model_family.apply_patch_tool_type {
-            Some(ApplyPatchToolType::Freeform) => Some(ApplyPatchToolType::Freeform),
-            Some(ApplyPatchToolType::Function) => Some(ApplyPatchToolType::Function),
-            None => {
-                if *include_apply_patch_tool {
-                    Some(ApplyPatchToolType::Function)
-                } else {
-                    None
-                }
+            Some(ref tool) => Some(tool.clone()),
+            None if *include_apply_patch_tool
+                || model_family.needs_special_apply_patch_instructions =>
+            {
+                Some(ApplyPatchToolType::Function)
             }
+            None => None,
         };
 
         Self {
