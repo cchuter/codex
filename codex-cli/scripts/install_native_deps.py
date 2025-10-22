@@ -54,6 +54,11 @@ BINARY_COMPONENTS = {
         dest_dir="codex-responses-api-proxy",
         binary_basename="codex-responses-api-proxy",
     ),
+    "apply_patch": BinaryComponent(
+        artifact_prefix="osmiflow-apply-patch",
+        dest_dir="apply_patch",
+        binary_basename="apply_patch",
+    ),
 }
 
 RG_TARGET_PLATFORM_PAIRS: list[tuple[str, str]] = [
@@ -106,7 +111,7 @@ def main() -> int:
     vendor_dir = codex_cli_root / VENDOR_DIR_NAME
     vendor_dir.mkdir(parents=True, exist_ok=True)
 
-    components = args.components or ["codex", "rg"]
+    components = args.components or ["codex", "apply_patch", "rg"]
 
     workflow_url = (args.workflow_url or DEFAULT_WORKFLOW_URL).strip()
     if not workflow_url:

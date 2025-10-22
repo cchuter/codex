@@ -85,6 +85,10 @@ const pathDir = path.join(archRoot, "path");
 if (existsSync(pathDir)) {
   additionalDirs.push(pathDir);
 }
+const applyPatchDir = path.join(archRoot, "apply_patch");
+if (existsSync(applyPatchDir)) {
+  additionalDirs.push(applyPatchDir);
+}
 const updatedPath = getUpdatedPath(additionalDirs);
 
 const child = spawn(binaryPath, process.argv.slice(2), {
