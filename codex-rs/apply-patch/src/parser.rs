@@ -38,6 +38,24 @@ const EOF_MARKER: &str = "*** End of File";
 const CHANGE_CONTEXT_MARKER: &str = "@@ ";
 const EMPTY_CHANGE_CONTEXT_MARKER: &str = "@@";
 
+fn parse_change_context(raw: &str) -> Option<String> {
+    let trimmed = raw.trim_end();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Some(idx) = trimmed.rfind("@@") {
+        let after = trimmed[idx + 2..].trim_start();
+        if after.is_empty() {
+            None
+        } else {
+            Some(after.to_string())
+        }
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 /// Currently, the only OpenAI model that knowingly requires lenient parsing is
 /// gpt-4.1. While we could try to require everyone to pass in a strictness
 /// param when invoking apply_patch, it is a pain to thread it through all of
@@ -353,7 +371,7 @@ fn parse_update_file_chunk(
     let (change_context, start_index) = if lines[0] == EMPTY_CHANGE_CONTEXT_MARKER {
         (None, 1)
     } else if let Some(context) = lines[0].strip_prefix(CHANGE_CONTEXT_MARKER) {
-        (Some(context.to_string()), 1)
+        (parse_change_context(context), 1)
     } else {
         if !allow_missing_context {
             return Err(InvalidHunkError {
@@ -555,6 +573,61 @@ fn test_parse_patch() {
                 change_context: None,
                 old_lines: vec!["import foo".to_string()],
                 new_lines: vec!["import foo".to_string(), "bar".to_string()],
+                is_end_of_file: false,
+            }],
+        }]
+    );
+
+    // Diff headers with only coordinate metadata should not produce a context line.
+    assert_eq!(
+        parse_patch_text(
+            concat!(
+                "*** Begin Patch\n",
+                "*** Update File: file3.py\n",
+                "@@ -1,1 +1,2 @@\n",
+                " line\n",
+                "+added\n",
+                "*** End Patch"
+            ),
+            ParseMode::Strict
+        )
+        .unwrap()
+        .hunks,
+        vec![UpdateFile {
+            path: PathBuf::from("file3.py"),
+            move_path: None,
+            chunks: vec![UpdateFileChunk {
+                change_context: None,
+                old_lines: vec!["line".to_string()],
+                new_lines: vec!["line".to_string(), "added".to_string()],
+                is_end_of_file: false,
+            }],
+        }]
+    );
+
+    // Diff headers with trailing context should capture the context after the coordinates.
+    assert_eq!(
+        parse_patch_text(
+            concat!(
+                "*** Begin Patch\n",
+                "*** Update File: file4.py\n",
+                "@@ -1,2 +1,2 @@ def foo():\n",
+                " def foo():\n",
+                "-    pass\n",
+                "+    return 1\n",
+                "*** End Patch"
+            ),
+            ParseMode::Strict
+        )
+        .unwrap()
+        .hunks,
+        vec![UpdateFile {
+            path: PathBuf::from("file4.py"),
+            move_path: None,
+            chunks: vec![UpdateFileChunk {
+                change_context: Some("def foo():".to_string()),
+                old_lines: vec!["def foo():".to_string(), "    pass".to_string()],
+                new_lines: vec!["def foo():".to_string(), "    return 1".to_string()],
                 is_end_of_file: false,
             }],
         }]
