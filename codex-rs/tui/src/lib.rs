@@ -171,6 +171,21 @@ pub async fn run_main(
         }
     };
 
+    // Check for OSMI API key if using OSMI provider
+    #[allow(clippy::print_stderr)]
+    if config.model_provider_id == "osmi" {
+        if let Err(err) = codex_core::osmi_auth::verify_and_prompt_osmi_api_key(
+            &config.codex_home,
+            &config.model_provider_id,
+            config.model_provider.env_key.as_deref(),
+        )
+        .await
+        {
+            eprintln!("Error verifying OSMI API key: {err}");
+            std::process::exit(1);
+        }
+    }
+
     // we load config.toml here to determine project state.
     #[allow(clippy::print_stderr)]
     let config_toml = {
