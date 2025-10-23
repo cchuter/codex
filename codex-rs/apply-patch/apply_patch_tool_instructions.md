@@ -68,6 +68,7 @@ It is important to remember:
 - You must include a header with your intended action (Add/Delete/Update)
 - You must prefix new lines with `+` even when creating a new file
 - File references can only be relative, NEVER ABSOLUTE.
+- When changing existing code, include both the `-` lines (unchanged copies of the current file) and matching `+` lines with the new content—do not edit the text on a `-` line.
 
 You can invoke apply_patch like:
 
