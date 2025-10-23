@@ -48,6 +48,7 @@ UpdateFile := "*** Update File: " path NEWLINE [ MoveTo ] { Hunk }
 MoveTo := "*** Move to: " newPath NEWLINE
 Hunk := "@@" [ header ] NEWLINE { HunkLine } [ "*** End of File" NEWLINE ]
 HunkLine := (" " | "-" | "+") text NEWLINE
+(Only the leading `@@` introduces a hunk; do not add a trailing `@@` line.)
 
 A full patch can combine several operations:
 
