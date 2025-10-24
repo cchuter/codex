@@ -2,13 +2,18 @@
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
 use crate::config_edit::persist_overrides;
-use crate::error::{CodexErr, Result};
-use serde::{Deserialize, Serialize};
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use crate::error::CodexErr;
+use crate::error::Result;
+use serde::Deserialize;
+use serde::Serialize;
+use std::fs::OpenOptions;
+use std::fs::{self};
+use std::io::Write;
+use std::io::{self};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct OsmiAuth {
