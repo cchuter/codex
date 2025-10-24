@@ -99,14 +99,22 @@ async fn authenticate_api_key(api_key: &str) -> Result<bool> {
         .json(&test_request)
         .send()
         .await
-        .map_err(|e| CodexErr::Io(io::Error::other(format!("Failed to connect to OSMI API: {}", e))))?;
+        .map_err(|e| {
+            CodexErr::Io(io::Error::other(format!(
+                "Failed to connect to OSMI API: {}",
+                e
+            )))
+        })?;
 
     // Check if authentication was successful
     match response.status() {
         reqwest::StatusCode::OK => Ok(true),
         reqwest::StatusCode::UNAUTHORIZED => Ok(false),
         status => {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             Err(CodexErr::Io(io::Error::other(format!(
                 "OSMI API error ({}): {}",
                 status, error_text

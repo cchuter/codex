@@ -196,7 +196,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     // Check if OSMI provider is configured and verify API key
     #[allow(clippy::print_stderr)]
     if codex_core::osmi_auth::is_osmi_provider(&config) {
-        if let Err(err) = codex_core::osmi_auth::verify_and_prompt_osmi_api_key(&config.codex_home).await {
+        if let Err(err) =
+            codex_core::osmi_auth::verify_and_prompt_osmi_api_key(&config.codex_home).await
+        {
             eprintln!("Error verifying OSMI API key: {err}");
             std::process::exit(1);
         }
