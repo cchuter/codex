@@ -147,12 +147,8 @@ pub async fn verify_and_prompt_osmi_api_key(
     eprintln!("The OSMI provider requires an API key to function.");
     eprintln!("You can get your API key from https://models.osmi.ai\n");
 
-    let api_key = prompt_for_api_key().map_err(|e| {
-        CodexErr::Io(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("Failed to read API key: {e}"),
-        ))
-    })?;
+    let api_key = prompt_for_api_key()
+        .map_err(|e| CodexErr::Io(io::Error::other(format!("Failed to read API key: {e}"))))?;
 
     // Set the environment variable for this session
     // SAFETY: Setting environment variables is safe in single-threaded context
@@ -177,7 +173,7 @@ pub async fn verify_and_prompt_osmi_api_key(
         // Also update config.toml to use OSMI_API_KEY
         save_osmi_api_key_to_config(codex_home, "OSMI_API_KEY")
             .await
-            .map_err(|e| CodexErr::Io(io::Error::new(io::ErrorKind::Other, e)))?;
+            .map_err(|e| CodexErr::Io(io::Error::other(e)))?;
 
         eprintln!("\n✅ API key saved successfully!");
         eprintln!("   The key has been saved to ~/.osmiflow/osmi_auth.json");
