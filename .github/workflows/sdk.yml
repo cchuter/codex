@@ -41,3 +41,5 @@ jobs:
 
       - name: Test SDK packages
         run: pnpm -r --filter ./sdk/typescript run test
+        env:
+          CODEX_EXECUTABLE: ${{ github.workspace }}/codex-rs/target/debug/osmiflow

@@ -16,7 +16,8 @@ import {
   startResponsesTestProxy,
 } from "./responsesProxy";
 
-const codexExecPath = path.join(process.cwd(), "..", "..", "codex-rs", "target", "debug", "codex");
+const codexExecPath = process.env.CODEX_EXECUTABLE ??
+  path.join(process.cwd(), "..", "..", "codex-rs", "target", "debug", "codex");
 
 describe("Codex", () => {
   it("returns thread events", async () => {
