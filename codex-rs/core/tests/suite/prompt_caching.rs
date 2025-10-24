@@ -136,8 +136,8 @@ async fn codex_mini_latest_tools() {
     assert_eq!(requests.len(), 2, "expected two POST requests");
 
     let expected_instructions = [
-        include_str!("../../prompt.md"),
-        include_str!("../../../apply-patch/apply_patch_tool_instructions.md"),
+        include_str!("../../prompt.md").replace("\r\n", "\n"),
+        include_str!("../../../apply-patch/apply_patch_tool_instructions.md").replace("\r\n", "\n"),
     ]
     .join("\n");
 
