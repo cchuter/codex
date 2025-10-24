@@ -93,16 +93,15 @@ async fn authenticate_api_key(api_key: &str) -> Result<bool> {
     };
 
     let response = client
-        .post(format!("{}/v1/chat/completions", OSMI_API_BASE_URL))
-        .header("Authorization", format!("Bearer {}", api_key))
+        .post(format!("{OSMI_API_BASE_URL}/v1/chat/completions"))
+        .header("Authorization", format!("Bearer {api_key}"))
         .header("Content-Type", "application/json")
         .json(&test_request)
         .send()
         .await
         .map_err(|e| {
             CodexErr::Io(io::Error::other(format!(
-                "Failed to connect to OSMI API: {}",
-                e
+                "Failed to connect to OSMI API: {e}"
             )))
         })?;
 
@@ -116,8 +115,7 @@ async fn authenticate_api_key(api_key: &str) -> Result<bool> {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             Err(CodexErr::Io(io::Error::other(format!(
-                "OSMI API error ({}): {}",
-                status, error_text
+                "OSMI API error ({status}): {error_text}"
             ))))
         }
     }
@@ -158,26 +156,24 @@ pub fn is_osmi_provider(config: &crate::config::Config) -> bool {
 /// Verify and prompt for OSMI API key if needed
 pub async fn verify_and_prompt_osmi_api_key(codex_home: &Path) -> Result<()> {
     // Check if OSMI_API_KEY environment variable is already set
-    if let Ok(api_key) = std::env::var("OSMI_API_KEY") {
-        if !api_key.trim().is_empty() {
-            eprintln!("ℹ️  Using OSMI API key from environment variable.");
+    if let Ok(api_key) = std::env::var("OSMI_API_KEY") && !api_key.trim().is_empty() {
+        eprintln!("ℹ️  Using OSMI API key from environment variable.");
 
-            // Authenticate the API key
-            eprintln!("🔐 Authenticating with models.osmi.ai...");
-            match authenticate_api_key(&api_key).await {
-                Ok(true) => {
-                    eprintln!("✅ Authentication successful!");
-                    return Ok(());
-                }
-                Ok(false) => {
-                    eprintln!("❌ Authentication failed: Invalid API key.");
-                    eprintln!("   Please check your OSMI_API_KEY environment variable.");
-                    std::process::exit(1);
-                }
-                Err(e) => {
-                    eprintln!("❌ Authentication error: {}", e);
-                    std::process::exit(1);
-                }
+        // Authenticate the API key
+        eprintln!("🔐 Authenticating with models.osmi.ai...");
+        match authenticate_api_key(&api_key).await {
+            Ok(true) => {
+                eprintln!("✅ Authentication successful!");
+                return Ok(());
+            }
+            Ok(false) => {
+                eprintln!("❌ Authentication failed: Invalid API key.");
+                eprintln!("   Please check your OSMI_API_KEY environment variable.");
+                std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("❌ Authentication error: {e}");
+                std::process::exit(1);
             }
         }
     }
@@ -204,7 +200,7 @@ pub async fn verify_and_prompt_osmi_api_key(codex_home: &Path) -> Result<()> {
                 // Continue to prompt for a new key
             }
             Err(e) => {
-                eprintln!("⚠️  Authentication error with saved key: {}", e);
+                eprintln!("⚠️  Authentication error with saved key: {e}");
                 // Continue to prompt for a new key
             }
         }
@@ -216,7 +212,7 @@ pub async fn verify_and_prompt_osmi_api_key(codex_home: &Path) -> Result<()> {
     eprintln!("You can get your API key from https://models.osmi.ai\n");
 
     let api_key = prompt_for_api_key()
-        .map_err(|e| CodexErr::Io(io::Error::other(format!("Failed to read API key: {}", e))))?;
+        .map_err(|e| CodexErr::Io(io::Error::other(format!("Failed to read API key: {e}"))))?;
 
     // Authenticate the API key
     eprintln!("\n🔐 Authenticating with models.osmi.ai...");
@@ -230,7 +226,7 @@ pub async fn verify_and_prompt_osmi_api_key(codex_home: &Path) -> Result<()> {
             std::process::exit(1);
         }
         Err(e) => {
-            eprintln!("❌ Authentication error: {}", e);
+            eprintln!("❌ Authentication error: {e}");
             std::process::exit(1);
         }
     }
@@ -254,11 +250,11 @@ pub async fn verify_and_prompt_osmi_api_key(codex_home: &Path) -> Result<()> {
         eprintln!("   The key has been saved to ~/.osmiflow/osmi_auth.json");
         eprintln!("   It will be automatically loaded and authenticated in future sessions.");
         eprintln!("\n   For other applications, you can also set it as an environment variable:");
-        eprintln!("   export OSMI_API_KEY=\"{}\"", api_key);
+        eprintln!("   export OSMI_API_KEY=\"{api_key}\"");
     } else {
         eprintln!("\nℹ️  API key not saved. It is set for this session only.");
         eprintln!("   To make it permanent, add to your shell profile:");
-        eprintln!("   export OSMI_API_KEY=\"{}\"", api_key);
+        eprintln!("   export OSMI_API_KEY=\"{api_key}\"");
     }
 
     Ok(())
