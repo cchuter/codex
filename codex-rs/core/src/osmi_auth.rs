@@ -1,7 +1,10 @@
+// Allow prints in this module since it's for user interaction during startup
+#![allow(clippy::print_stdout, clippy::print_stderr)]
+
 use crate::config_edit::persist_overrides;
 use crate::error::{CodexErr, Result};
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
@@ -85,9 +88,7 @@ pub async fn save_osmi_api_key_to_config(
     env_key_name: &str,
 ) -> anyhow::Result<()> {
     // Update the model_providers.osmi.env_key in config.toml
-    let overrides = vec![
-        (&["model_providers", "osmi", "env_key"][..], env_key_name),
-    ];
+    let overrides = vec![(&["model_providers", "osmi", "env_key"][..], env_key_name)];
 
     persist_overrides(codex_home, None, &overrides).await?;
     Ok(())
@@ -144,7 +145,7 @@ pub async fn verify_and_prompt_osmi_api_key(
     let api_key = prompt_for_api_key().map_err(|e| {
         CodexErr::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Failed to read API key: {}", e),
+            format!("Failed to read API key: {e}"),
         ))
     })?;
 
@@ -162,14 +163,11 @@ pub async fn verify_and_prompt_osmi_api_key(
     io::stdout().flush().map_err(CodexErr::Io)?;
 
     let mut response = String::new();
-    io::stdin()
-        .read_line(&mut response)
-        .map_err(CodexErr::Io)?;
+    io::stdin().read_line(&mut response).map_err(CodexErr::Io)?;
 
     if response.trim().to_lowercase() == "y" {
         // Save the API key to osmi_auth.json
-        save_osmi_api_key(codex_home, &api_key, "OSMI_API_KEY")
-            .map_err(CodexErr::Io)?;
+        save_osmi_api_key(codex_home, &api_key, "OSMI_API_KEY").map_err(CodexErr::Io)?;
 
         // Also update config.toml to use OSMI_API_KEY
         save_osmi_api_key_to_config(codex_home, "OSMI_API_KEY")
@@ -180,11 +178,11 @@ pub async fn verify_and_prompt_osmi_api_key(
         eprintln!("   The key has been saved to ~/.osmiflow/osmi_auth.json");
         eprintln!("   It will be automatically loaded in future sessions.");
         eprintln!("\n   For other applications, you can also set it as an environment variable:");
-        eprintln!("   export OSMI_API_KEY=\"{}\"", api_key);
+        eprintln!("   export OSMI_API_KEY=\"{api_key}\"");
     } else {
         eprintln!("\nℹ️  API key not saved. It is set for this session only.");
         eprintln!("   To make it permanent, add to your shell profile:");
-        eprintln!("   export OSMI_API_KEY=\"{}\"", api_key);
+        eprintln!("   export OSMI_API_KEY=\"{api_key}\"");
     }
 
     Ok(())
