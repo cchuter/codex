@@ -147,6 +147,12 @@ pub async fn run_main(
         show_raw_agent_reasoning: cli.oss.then_some(true),
         tools_web_search_request: cli.web_search.then_some(true),
     };
+    // Ensure default config exists
+    if let Err(e) = codex_core::default_config::ensure_default_config().await {
+        // Don't fail if we can't create default config, just log it
+        tracing::debug!("Could not create default config: {e}");
+    }
+
     let raw_overrides = cli.config_overrides.raw_overrides.clone();
     let overrides_cli = codex_common::CliConfigOverrides { raw_overrides };
     let cli_kv_overrides = match overrides_cli.parse_overrides() {
