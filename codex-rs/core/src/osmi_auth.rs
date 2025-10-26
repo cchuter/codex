@@ -6,7 +6,6 @@ use std::io::Write;
 use anyhow::Context;
 use anyhow::Result;
 use reqwest::Client;
-use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -20,14 +19,6 @@ struct AuthRequest {
 struct Message {
     role: String,
     content: String,
-}
-
-#[derive(Deserialize)]
-struct AuthResponse {
-    // We only need to check if the response is valid
-    // The actual content doesn't matter for auth
-    #[allow(dead_code)]
-    id: Option<String>,
 }
 
 /// Authenticates an API key against the OSMI API
@@ -44,8 +35,8 @@ async fn verify_api_key(api_key: &str, base_url: &str) -> Result<bool> {
     };
 
     let response = client
-        .post(format!("{}/chat/completions", base_url))
-        .header("Authorization", format!("Bearer {}", api_key))
+        .post(format!("{base_url}/chat/completions"))
+        .header("Authorization", format!("Bearer {api_key}"))
         .header("Content-Type", "application/json")
         .json(&auth_request)
         .send()
@@ -57,8 +48,9 @@ async fn verify_api_key(api_key: &str, base_url: &str) -> Result<bool> {
 }
 
 /// Prompts the user for an API key via stdin
+#[allow(clippy::print_stdout)]
 fn prompt_for_api_key(env_key_name: &str) -> Result<String> {
-    print!("Please enter your {} (it will be hidden): ", env_key_name);
+    print!("Please enter your {env_key_name} (it will be hidden): ");
     io::stdout().flush()?;
 
     // Read the API key from stdin
@@ -77,6 +69,7 @@ fn prompt_for_api_key(env_key_name: &str) -> Result<String> {
 /// 4. Sets the environment variable if authentication succeeds and it wasn't previously set
 ///
 /// Returns the validated API key if successful.
+#[allow(clippy::print_stderr)]
 pub async fn verify_osmi_auth(
     provider_name: &str,
     base_url: &str,
@@ -92,16 +85,16 @@ pub async fn verify_osmi_auth(
         Ok(key) if !key.trim().is_empty() => {
             // API key exists, verify it works
             if verify_api_key(&key, base_url).await? {
-                tracing::debug!("Using existing {} from environment", env_key_name);
+                tracing::debug!("Using existing {env_key_name} from environment");
                 key
             } else {
                 // Existing key is invalid, prompt for a new one
-                eprintln!("Warning: Existing {} is invalid", env_key_name);
+                eprintln!("Warning: Existing {env_key_name} is invalid");
                 let new_key = prompt_for_api_key(env_key_name)?;
 
                 // Verify the new key
                 if !verify_api_key(&new_key, base_url).await? {
-                    anyhow::bail!("Invalid API key for {}", provider_name);
+                    anyhow::bail!("Invalid API key for {provider_name}");
                 }
 
                 // Set the environment variable for this session
@@ -109,18 +102,18 @@ pub async fn verify_osmi_auth(
                     std::env::set_var(env_key_name, &new_key);
                 }
 
-                eprintln!("✓ Authentication successful for {}", provider_name);
+                eprintln!("✓ Authentication successful for {provider_name}");
                 new_key
             }
         }
         _ => {
             // No API key set, prompt for one
-            eprintln!("\n{} provider requires authentication.", provider_name);
+            eprintln!("\n{provider_name} provider requires authentication.");
             let api_key = prompt_for_api_key(env_key_name)?;
 
             // Verify the API key
             if !verify_api_key(&api_key, base_url).await? {
-                anyhow::bail!("Invalid API key for {}", provider_name);
+                anyhow::bail!("Invalid API key for {provider_name}");
             }
 
             // Set the environment variable for this session
@@ -128,7 +121,7 @@ pub async fn verify_osmi_auth(
                 std::env::set_var(env_key_name, &api_key);
             }
 
-            eprintln!("✓ Authentication successful for {}", provider_name);
+            eprintln!("✓ Authentication successful for {provider_name}");
             api_key
         }
     };
@@ -147,7 +140,7 @@ pub async fn ensure_provider_auth(config: &crate::config::Config) -> Result<()> 
                 || provider_info
                     .base_url
                     .as_ref()
-                    .map_or(false, |url| url.contains("osmi.ai"))
+                    .is_some_and(|url| url.contains("osmi.ai"))
             {
                 let base_url = provider_info
                     .base_url
