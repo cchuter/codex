@@ -196,9 +196,16 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     {
         let codex_home = codex_core::config::find_codex_home()
             .unwrap_or_else(|_| std::path::PathBuf::from(".osmiflow"));
+        let config_path = codex_home.join("config.toml");
+        let config_created = !config_path.exists();
         if let Err(err) = codex_core::default_config::ensure_default_config(&codex_home) {
             eprintln!("Error creating default config: {err}");
             // Continue even if default config creation fails
+        } else if config_created {
+            eprintln!(
+                "Created default configuration at: {}",
+                config_path.display()
+            );
         }
     }
 

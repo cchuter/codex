@@ -39,10 +39,5 @@ pub fn ensure_default_config(codex_home: &Path) -> std::io::Result<()> {
     file.write_all(DEFAULT_CONFIG.as_bytes())?;
     file.sync_all()?;
 
-    eprintln!(
-        "Created default configuration at: {}",
-        config_path.display()
-    );
-
     Ok(())
 }
