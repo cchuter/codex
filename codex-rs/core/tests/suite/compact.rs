@@ -141,8 +141,11 @@ async fn summarize_context_three_requests_and_instructions() {
     // Manual compact should keep the baseline developer instructions.
     let instr1 = body1.get("instructions").and_then(|v| v.as_str()).unwrap();
     let instr2 = body2.get("instructions").and_then(|v| v.as_str()).unwrap();
+    // Normalize line endings for Windows compatibility
+    let instr1_normalized = instr1.replace("\r\n", "\n");
+    let instr2_normalized = instr2.replace("\r\n", "\n");
     assert_eq!(
-        instr1, instr2,
+        instr1_normalized, instr2_normalized,
         "manual compact should keep the standard developer instructions"
     );
 
