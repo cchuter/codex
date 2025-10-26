@@ -107,5 +107,5 @@ pub use codex_protocol::models::LocalShellStatus;
 pub use codex_protocol::models::ReasoningItemContent;
 pub use codex_protocol::models::ResponseItem;
 
-pub mod otel_init;
 pub mod osmi_auth;
+pub mod otel_init;

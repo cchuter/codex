@@ -144,9 +144,13 @@ pub async fn ensure_provider_auth(config: &crate::config::Config) -> Result<()> 
         if let Some(env_key) = &provider_info.env_key {
             // Special handling for OSMI provider
             if provider_id == "osmi"
-                || provider_info.base_url.as_ref().map_or(false, |url| url.contains("osmi.ai"))
+                || provider_info
+                    .base_url
+                    .as_ref()
+                    .map_or(false, |url| url.contains("osmi.ai"))
             {
-                let base_url = provider_info.base_url
+                let base_url = provider_info
+                    .base_url
                     .as_ref()
                     .cloned()
                     .unwrap_or_else(|| "https://models.osmi.ai/v1".to_string());
