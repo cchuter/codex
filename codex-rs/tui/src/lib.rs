@@ -182,6 +182,12 @@ pub async fn run_main(
             }
         };
 
+        // Ensure default config exists
+        if let Err(err) = codex_core::default_config::ensure_default_config(&codex_home) {
+            eprintln!("Error creating default config: {err}");
+            // Continue even if default config creation fails
+        }
+
         match load_config_as_toml_with_cli_overrides(&codex_home, cli_kv_overrides).await {
             Ok(config_toml) => config_toml,
             Err(err) => {
