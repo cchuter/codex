@@ -153,8 +153,11 @@ async fn summarize_context_three_requests_and_instructions() {
     assert_eq!(last2.get("type").unwrap().as_str().unwrap(), "message");
     assert_eq!(last2.get("role").unwrap().as_str().unwrap(), "user");
     let text2 = last2["content"][0]["text"].as_str().unwrap();
+    // Normalize line endings for Windows compatibility
+    let text2_normalized = text2.replace("\r\n", "\n");
+    let summarization_prompt_normalized = SUMMARIZATION_PROMPT.replace("\r\n", "\n");
     assert_eq!(
-        text2, SUMMARIZATION_PROMPT,
+        text2_normalized, summarization_prompt_normalized,
         "expected summarize trigger, got `{text2}`"
     );
 
@@ -200,14 +203,17 @@ async fn summarize_context_three_requests_and_instructions() {
         bridge_text.contains("hello world"),
         "bridge should capture earlier user messages"
     );
+    // Normalize line endings for Windows compatibility
+    let bridge_text_normalized = bridge_text.replace("\r\n", "\n");
+    let summarization_prompt_normalized = SUMMARIZATION_PROMPT.replace("\r\n", "\n");
     assert!(
-        !bridge_text.contains(SUMMARIZATION_PROMPT),
+        !bridge_text_normalized.contains(&summarization_prompt_normalized),
         "bridge text should not echo the summarize trigger"
     );
     assert!(
         !messages
             .iter()
-            .any(|(_, text)| text.contains(SUMMARIZATION_PROMPT)),
+            .any(|(_, text)| text.replace("\r\n", "\n").contains(&summarization_prompt_normalized)),
         "third request should not include the summarize trigger"
     );
 
@@ -397,8 +403,11 @@ async fn auto_compact_runs_after_token_limit_hit() {
         .and_then(|item| item.get("text"))
         .and_then(|text| text.as_str())
         .unwrap_or_default();
+    // Normalize line endings for Windows compatibility
+    let last_text_normalized = last_text.replace("\r\n", "\n");
+    let summarization_prompt_normalized = SUMMARIZATION_PROMPT.replace("\r\n", "\n");
     assert_eq!(
-        last_text, SUMMARIZATION_PROMPT,
+        last_text_normalized, summarization_prompt_normalized,
         "auto compact should send the summarization prompt as a user message",
     );
 }
@@ -613,7 +622,10 @@ async fn auto_compact_stops_after_failed_attempt() {
                 .and_then(|items| items.first())
                 .and_then(|entry| entry.get("text"))
                 .and_then(|text| text.as_str())
-                .map(|text| text == SUMMARIZATION_PROMPT)
+                .map(|text| {
+                    // Normalize line endings for Windows compatibility
+                    text.replace("\r\n", "\n") == SUMMARIZATION_PROMPT.replace("\r\n", "\n")
+                })
                 .unwrap_or(false)
     });
     assert!(

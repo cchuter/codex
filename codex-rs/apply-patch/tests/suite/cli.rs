@@ -23,7 +23,10 @@ fn test_apply_patch_cli_add_and_update() -> anyhow::Result<()> {
         .assert()
         .success()
         .stdout(format!("Success. Updated the following files:\nA {file}\n"));
-    assert_eq!(fs::read_to_string(&absolute_path)?, "hello\n");
+    // Normalize line endings for Windows compatibility
+    let content = fs::read_to_string(&absolute_path)?;
+    let content_normalized = content.replace("\r\n", "\n");
+    assert_eq!(content_normalized, "hello\n");
 
     // 2) Update the file
     let update_patch = format!(
@@ -41,7 +44,10 @@ fn test_apply_patch_cli_add_and_update() -> anyhow::Result<()> {
         .assert()
         .success()
         .stdout(format!("Success. Updated the following files:\nM {file}\n"));
-    assert_eq!(fs::read_to_string(&absolute_path)?, "world\n");
+    // Normalize line endings for Windows compatibility
+    let content = fs::read_to_string(&absolute_path)?;
+    let content_normalized = content.replace("\r\n", "\n");
+    assert_eq!(content_normalized, "world\n");
 
     Ok(())
 }
@@ -66,7 +72,10 @@ fn test_apply_patch_cli_stdin_add_and_update() -> anyhow::Result<()> {
         .assert()
         .success()
         .stdout(format!("Success. Updated the following files:\nA {file}\n"));
-    assert_eq!(fs::read_to_string(&absolute_path)?, "hello\n");
+    // Normalize line endings for Windows compatibility
+    let content = fs::read_to_string(&absolute_path)?;
+    let content_normalized = content.replace("\r\n", "\n");
+    assert_eq!(content_normalized, "hello\n");
 
     // 2) Update the file via stdin
     let update_patch = format!(
@@ -84,7 +93,10 @@ fn test_apply_patch_cli_stdin_add_and_update() -> anyhow::Result<()> {
         .assert()
         .success()
         .stdout(format!("Success. Updated the following files:\nM {file}\n"));
-    assert_eq!(fs::read_to_string(&absolute_path)?, "world\n");
+    // Normalize line endings for Windows compatibility
+    let content = fs::read_to_string(&absolute_path)?;
+    let content_normalized = content.replace("\r\n", "\n");
+    assert_eq!(content_normalized, "world\n");
 
     Ok(())
 }

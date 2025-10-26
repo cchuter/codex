@@ -139,18 +139,16 @@ async fn codex_mini_latest_tools() {
         include_str!("../../prompt.md"),
         include_str!("../../../apply-patch/apply_patch_tool_instructions.md"),
     ]
-    .join("\n");
+    .join("\n")
+    .replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
 
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
-    assert_eq!(
-        body0["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    let actual_instructions0 = body0["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    assert_eq!(actual_instructions0, expected_instructions);
+
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    assert_eq!(
-        body1["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    let actual_instructions1 = body1["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    assert_eq!(actual_instructions1, expected_instructions);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -235,26 +233,23 @@ async fn prompt_tools_are_consistent_across_requests() {
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
 
     let expected_instructions = if expected_tools_names.contains(&"apply_patch") {
-        base_instructions
+        base_instructions.replace("\r\n", "\n")
     } else {
         [
             base_instructions.clone(),
             include_str!("../../../apply-patch/apply_patch_tool_instructions.md").to_string(),
         ]
         .join("\n")
+        .replace("\r\n", "\n")
     };
 
-    assert_eq!(
-        body0["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    let actual_instructions0 = body0["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    assert_eq!(actual_instructions0, expected_instructions);
     assert_tool_names(&body0, expected_tools_names);
 
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    assert_eq!(
-        body1["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    let actual_instructions1 = body1["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    assert_eq!(actual_instructions1, expected_instructions);
     assert_tool_names(&body1, expected_tools_names);
 }
 
