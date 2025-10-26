@@ -1,8 +1,10 @@
 //! Default configuration for new installations
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 use tokio::fs;
 
 const DEFAULT_CONFIG_TOML: &str = r#"# OsmiFlow Configuration
@@ -43,7 +45,10 @@ fn is_test_environment() -> bool {
     if let Ok(codex_home) = std::env::var("CODEX_HOME") {
         let path = Path::new(&codex_home);
         // Common temp directory patterns used by tests
-        if path.starts_with("/tmp") || path.starts_with("/var/folders") || path.starts_with("/private/var/folders") {
+        if path.starts_with("/tmp")
+            || path.starts_with("/var/folders")
+            || path.starts_with("/private/var/folders")
+        {
             return true;
         }
     }
@@ -69,7 +74,9 @@ fn is_test_environment() -> bool {
 async fn create_default_config(config_path: &Path) -> Result<()> {
     // Ensure parent directory exists
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).await.context("Failed to create .osmiflow directory")?;
+        fs::create_dir_all(parent)
+            .await
+            .context("Failed to create .osmiflow directory")?;
     }
 
     // Write the default config
