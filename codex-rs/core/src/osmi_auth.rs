@@ -182,5 +182,14 @@ fn is_test_environment() -> bool {
         }
     }
 
+    // Check for common test-related environment variables
+    if std::env::var("NODE_ENV").as_deref() == Ok("test")
+        || std::env::var("JEST_WORKER_ID").is_ok()
+        || std::env::var("CI").is_ok()
+        || std::env::var("GITHUB_ACTIONS").is_ok()
+    {
+        return true;
+    }
+
     false
 }
