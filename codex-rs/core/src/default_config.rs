@@ -57,13 +57,13 @@ fn is_test_environment() -> bool {
     if std::env::var("CARGO_TARGET_DIR").is_ok() {
         // This is set during cargo build/test but not during normal execution
         // Combined with the binary name check, this is a good indicator
-        if let Ok(current_exe) = std::env::current_exe() {
-            if let Some(exe_name) = current_exe.file_name() {
-                let name = exe_name.to_string_lossy();
-                // Test binaries often have hashes in their names
-                if name.contains('-') && name.len() > 20 {
-                    return true;
-                }
+        if let Ok(current_exe) = std::env::current_exe()
+            && let Some(exe_name) = current_exe.file_name()
+        {
+            let name = exe_name.to_string_lossy();
+            // Test binaries often have hashes in their names
+            if name.contains('-') && name.len() > 20 {
+                return true;
             }
         }
     }
