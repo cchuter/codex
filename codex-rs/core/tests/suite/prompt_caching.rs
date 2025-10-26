@@ -141,11 +141,17 @@ async fn codex_mini_latest_tools() {
         .replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
 
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
-    let actual_instructions0 = body0["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    // On Windows, instructions may have actual CRLF or escaped \r\n sequences
+    let actual_instructions0 = body0["instructions"].as_str().unwrap()
+        .replace("\r\n", "\n")  // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions0, expected_instructions);
 
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    let actual_instructions1 = body1["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    // On Windows, instructions may have actual CRLF or escaped \r\n sequences
+    let actual_instructions1 = body1["instructions"].as_str().unwrap()
+        .replace("\r\n", "\n")  // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions1, expected_instructions);
 }
 
@@ -243,12 +249,17 @@ async fn prompt_tools_are_consistent_across_requests() {
         .join("\n")
     };
 
-    let actual_instructions0 = body0["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    // On Windows, instructions may have actual CRLF or escaped \r\n sequences
+    let actual_instructions0 = body0["instructions"].as_str().unwrap()
+        .replace("\r\n", "\n")  // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions0, expected_instructions);
     assert_tool_names(&body0, expected_tools_names);
 
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    let actual_instructions1 = body1["instructions"].as_str().unwrap().replace("\r\n", "\n");
+    let actual_instructions1 = body1["instructions"].as_str().unwrap()
+        .replace("\r\n", "\n")  // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions1, expected_instructions);
     assert_tool_names(&body1, expected_tools_names);
 }
