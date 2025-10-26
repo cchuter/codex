@@ -135,8 +135,10 @@ async fn codex_mini_latest_tools() {
     let requests = server.received_requests().await.unwrap();
     assert_eq!(requests.len(), 2, "expected two POST requests");
 
-    // For codex-mini-latest with include_apply_patch_tool=false,
-    // the apply_patch instructions are NOT appended (only the base instructions are used)
+    // Since apply_patch tool is always included (defaults to Function type),
+    // and codex-mini-latest has needs_special_apply_patch_instructions: true,
+    // the apply_patch instructions are NOT appended to the base instructions
+    // because the tool is present.
     let expected_instructions = include_str!("../../prompt.md")
         .replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
 
