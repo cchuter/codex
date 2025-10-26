@@ -177,6 +177,13 @@ pub async fn run_main(
         }
     };
 
+    // Ensure OSMI providers are authenticated
+    #[allow(clippy::print_stderr)]
+    if let Err(err) = codex_core::osmi_auth::ensure_provider_auth(&config).await {
+        eprintln!("Authentication error: {err}");
+        std::process::exit(1);
+    }
+
     // we load config.toml here to determine project state.
     #[allow(clippy::print_stderr)]
     let config_toml = {
