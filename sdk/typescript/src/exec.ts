@@ -191,8 +191,8 @@ function findCodexPath() {
 
   const vendorRoot = path.join(scriptDirName, "..", "vendor");
   const archRoot = path.join(vendorRoot, targetTriple);
-  const codexBinaryName = process.platform === "win32" ? "codex.exe" : "codex";
-  const binaryPath = path.join(archRoot, "codex", codexBinaryName);
+  const codexBinaryName = process.platform === "win32" ? "osmiflow.exe" : "osmiflow";
+  const binaryPath = path.join(archRoot, "osmiflow", codexBinaryName);
 
   return binaryPath;
 }
