@@ -135,12 +135,10 @@ async fn codex_mini_latest_tools() {
     let requests = server.received_requests().await.unwrap();
     assert_eq!(requests.len(), 2, "expected two POST requests");
 
-    let expected_instructions = [
-        include_str!("../../prompt.md"),
-        include_str!("../../../apply-patch/apply_patch_tool_instructions.md"),
-    ]
-    .join("\n")
-    .replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
+    // For codex-mini-latest with include_apply_patch_tool=false,
+    // the apply_patch instructions are NOT appended (only the base instructions are used)
+    let expected_instructions = include_str!("../../prompt.md")
+        .replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
 
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
     let actual_instructions0 = body0["instructions"].as_str().unwrap().replace("\r\n", "\n");
@@ -187,7 +185,8 @@ async fn prompt_tools_are_consistent_across_requests() {
 
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
-    let base_instructions = config.model_family.base_instructions.clone();
+    // Normalize line endings for Windows compatibility
+    let base_instructions = config.model_family.base_instructions.clone().replace("\r\n", "\n");
     let codex = conversation_manager
         .new_conversation(config)
         .await
@@ -233,14 +232,15 @@ async fn prompt_tools_are_consistent_across_requests() {
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
 
     let expected_instructions = if expected_tools_names.contains(&"apply_patch") {
-        base_instructions.replace("\r\n", "\n")
+        base_instructions.clone()
     } else {
         [
             base_instructions.clone(),
-            include_str!("../../../apply-patch/apply_patch_tool_instructions.md").to_string(),
+            include_str!("../../../apply-patch/apply_patch_tool_instructions.md")
+                .to_string()
+                .replace("\r\n", "\n"),
         ]
         .join("\n")
-        .replace("\r\n", "\n")
     };
 
     let actual_instructions0 = body0["instructions"].as_str().unwrap().replace("\r\n", "\n");
