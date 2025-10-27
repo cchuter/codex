@@ -144,10 +144,10 @@ async fn summarize_context_three_requests_and_instructions() {
 
     // Normalize line endings for Windows compatibility - handle both actual CRLF and escaped sequences
     let instr1_normalized = instr1
-        .replace("\r\n", "\n")    // Replace actual CRLF
+        .replace("\r\n", "\n") // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
     let instr2_normalized = instr2
-        .replace("\r\n", "\n")    // Replace actual CRLF
+        .replace("\r\n", "\n") // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
 
     assert_eq!(
@@ -220,9 +220,9 @@ async fn summarize_context_three_requests_and_instructions() {
         "bridge text should not echo the summarize trigger"
     );
     assert!(
-        !messages
-            .iter()
-            .any(|(_, text)| text.replace("\r\n", "\n").contains(&summarization_prompt_normalized)),
+        !messages.iter().any(|(_, text)| text
+            .replace("\r\n", "\n")
+            .contains(&summarization_prompt_normalized)),
         "third request should not include the summarize trigger"
     );
 

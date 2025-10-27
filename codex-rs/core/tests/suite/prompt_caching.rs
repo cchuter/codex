@@ -139,20 +139,23 @@ async fn codex_mini_latest_tools() {
     // and codex-mini-latest has needs_special_apply_patch_instructions: true,
     // the apply_patch instructions are NOT appended to the base instructions
     // because the tool is present.
-    let expected_instructions = include_str!("../../prompt.md")
-        .replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
+    let expected_instructions = include_str!("../../prompt.md").replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
 
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
     // On Windows, instructions may have actual CRLF or escaped \r\n sequences
-    let actual_instructions0 = body0["instructions"].as_str().unwrap()
-        .replace("\r\n", "\n")  // Replace actual CRLF
+    let actual_instructions0 = body0["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions0, expected_instructions);
 
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
     // On Windows, instructions may have actual CRLF or escaped \r\n sequences
-    let actual_instructions1 = body1["instructions"].as_str().unwrap()
-        .replace("\r\n", "\n")  // Replace actual CRLF
+    let actual_instructions1 = body1["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions1, expected_instructions);
 }
@@ -194,7 +197,11 @@ async fn prompt_tools_are_consistent_across_requests() {
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
     // Normalize line endings for Windows compatibility
-    let base_instructions = config.model_family.base_instructions.clone().replace("\r\n", "\n");
+    let base_instructions = config
+        .model_family
+        .base_instructions
+        .clone()
+        .replace("\r\n", "\n");
     let codex = conversation_manager
         .new_conversation(config)
         .await
@@ -252,15 +259,19 @@ async fn prompt_tools_are_consistent_across_requests() {
     };
 
     // On Windows, instructions may have actual CRLF or escaped \r\n sequences
-    let actual_instructions0 = body0["instructions"].as_str().unwrap()
-        .replace("\r\n", "\n")  // Replace actual CRLF
+    let actual_instructions0 = body0["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions0, expected_instructions);
     assert_tool_names(&body0, expected_tools_names);
 
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    let actual_instructions1 = body1["instructions"].as_str().unwrap()
-        .replace("\r\n", "\n")  // Replace actual CRLF
+    let actual_instructions1 = body1["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
     assert_eq!(actual_instructions1, expected_instructions);
     assert_tool_names(&body1, expected_tools_names);

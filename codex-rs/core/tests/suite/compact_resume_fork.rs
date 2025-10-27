@@ -658,9 +658,9 @@ fn normalize_line_endings(value: &mut Value) {
             // Handle both actual line endings and escaped sequences (Windows)
             if text.contains('\r') || text.contains("\\r\\n") {
                 *text = text
-                    .replace("\r\n", "\n")    // Replace actual CRLF
-                    .replace('\r', "\n")       // Replace lone CR
-                    .replace("\\r\\n", "\n");  // Replace escaped sequences
+                    .replace("\r\n", "\n") // Replace actual CRLF
+                    .replace('\r', "\n") // Replace lone CR
+                    .replace("\\r\\n", "\n"); // Replace escaped sequences
             }
         }
         Value::Array(items) => {

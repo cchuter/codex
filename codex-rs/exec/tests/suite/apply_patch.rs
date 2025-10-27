@@ -147,7 +147,8 @@ async fn test_apply_patch_freeform_tool() -> anyhow::Result<()> {
         .unwrap_or_else(|e| panic!("failed reading {}: {e}", final_path.display()));
     // Normalize line endings for Windows compatibility
     let contents_normalized = contents.replace("\r\n", "\n");
-    let expected_normalized = include_str!("../fixtures/apply_patch_freeform_final.txt").replace("\r\n", "\n");
+    let expected_normalized =
+        include_str!("../fixtures/apply_patch_freeform_final.txt").replace("\r\n", "\n");
     assert_eq!(contents_normalized, expected_normalized);
     Ok(())
 }
