@@ -62,7 +62,10 @@ impl Prompt {
             && model.needs_special_apply_patch_instructions
             && !is_apply_patch_tool_present
         {
-            Cow::Owned(format!("{base}\n{APPLY_PATCH_TOOL_INSTRUCTIONS}"))
+            // Normalize line endings before concatenation for Windows compatibility
+            let base_normalized = base.replace("\r\n", "\n");
+            let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
+            Cow::Owned(format!("{base_normalized}\n{apply_patch_normalized}"))
         } else {
             Cow::Borrowed(base)
         }
