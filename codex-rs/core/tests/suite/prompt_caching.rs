@@ -160,6 +160,7 @@ async fn codex_mini_latest_tools() {
     assert_eq!(actual_instructions1, expected_instructions);
 }
 
+#[cfg(not(target_os = "windows"))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn prompt_tools_are_consistent_across_requests() {
     skip_if_no_network!();

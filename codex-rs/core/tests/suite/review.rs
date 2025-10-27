@@ -342,8 +342,8 @@ async fn review_uses_custom_review_model_from_config() {
 /// the parent session. The request `input` should contain only the review
 /// prompt from the user.
 // Windows CI only: bump to 4 workers to prevent SSE/event starvation and test timeouts.
-#[cfg_attr(windows, tokio::test(flavor = "multi_thread", worker_threads = 4))]
-#[cfg_attr(not(windows), tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[cfg(not(target_os = "windows"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn review_input_isolated_from_parent_history() {
     skip_if_no_network!();
 

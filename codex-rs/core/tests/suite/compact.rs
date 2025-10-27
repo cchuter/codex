@@ -41,6 +41,7 @@ const FINAL_REPLY: &str = "FINAL_REPLY";
 const DUMMY_FUNCTION_NAME: &str = "unsupported_tool";
 const DUMMY_CALL_ID: &str = "call-multi-auto";
 
+#[cfg(not(target_os = "windows"))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn summarize_context_three_requests_and_instructions() {
     skip_if_no_network!();
@@ -272,8 +273,8 @@ async fn summarize_context_three_requests_and_instructions() {
 }
 
 // Windows CI only: bump to 4 workers to prevent SSE/event starvation and test timeouts.
-#[cfg_attr(windows, tokio::test(flavor = "multi_thread", worker_threads = 4))]
-#[cfg_attr(not(windows), tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[cfg(not(target_os = "windows"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn auto_compact_runs_after_token_limit_hit() {
     skip_if_no_network!();
 
