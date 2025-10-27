@@ -141,6 +141,41 @@ async fn summarize_context_three_requests_and_instructions() {
     // Manual compact should keep the baseline developer instructions.
     let instr1 = body1.get("instructions").and_then(|v| v.as_str()).unwrap();
     let instr2 = body2.get("instructions").and_then(|v| v.as_str()).unwrap();
+
+    // Debug: Check what we're dealing with (Windows debugging)
+    #[cfg(target_os = "windows")]
+    {
+        eprintln!("DEBUG: Running on Windows - checking instructions");
+        eprintln!("instr1 length: {}, instr2 length: {}", instr1.len(), instr2.len());
+
+        // Check for different types of line endings
+        eprintln!("instr1 contains \\r\\n: {}", instr1.contains("\r\n"));
+        eprintln!("instr1 contains escaped \\\\r\\\\n: {}", instr1.contains("\\r\\n"));
+        eprintln!("instr2 contains \\r\\n: {}", instr2.contains("\r\n"));
+        eprintln!("instr2 contains escaped \\\\r\\\\n: {}", instr2.contains("\\r\\n"));
+
+        // Show a sample of the actual content
+        eprintln!("First 100 chars of instr1: {:?}", &instr1.chars().take(100).collect::<String>());
+        eprintln!("First 100 chars of instr2: {:?}", &instr2.chars().take(100).collect::<String>());
+
+        if instr1 != instr2 {
+            // Find first difference
+            for (i, (c1, c2)) in instr1.chars().zip(instr2.chars()).enumerate() {
+                if c1 != c2 {
+                    eprintln!("First difference at position {}: '{}' (U+{:04X}) vs '{}' (U+{:04X})",
+                        i, c1, c1 as u32, c2, c2 as u32);
+                    // Show context around the difference
+                    let start = if i > 20 { i - 20 } else { 0 };
+                    let end = if i + 20 < instr1.len() { i + 20 } else { instr1.len() };
+                    eprintln!("Context around difference in instr1: {:?}", &instr1[start..end]);
+                    let end2 = if i + 20 < instr2.len() { i + 20 } else { instr2.len() };
+                    eprintln!("Context around difference in instr2: {:?}", &instr2[start..end2]);
+                    break;
+                }
+            }
+        }
+    }
+
     // Normalize line endings for Windows compatibility - handle both actual CRLF and escaped sequences
     let instr1_normalized = instr1
         .replace("\r\n", "\n")    // Replace actual CRLF
@@ -148,6 +183,23 @@ async fn summarize_context_three_requests_and_instructions() {
     let instr2_normalized = instr2
         .replace("\r\n", "\n")    // Replace actual CRLF
         .replace("\\r\\n", "\n"); // Replace escaped sequences
+
+    #[cfg(target_os = "windows")]
+    if instr1_normalized != instr2_normalized {
+        eprintln!("ERROR: Instructions still differ after normalization!");
+        eprintln!("normalized instr1 length: {}, normalized instr2 length: {}",
+            instr1_normalized.len(), instr2_normalized.len());
+
+        // Find what's still different after normalization
+        for (i, (c1, c2)) in instr1_normalized.chars().zip(instr2_normalized.chars()).enumerate() {
+            if c1 != c2 {
+                eprintln!("After normalization, first difference at position {}: '{}' (U+{:04X}) vs '{}' (U+{:04X})",
+                    i, c1, c1 as u32, c2, c2 as u32);
+                break;
+            }
+        }
+    }
+
     assert_eq!(
         instr1_normalized, instr2_normalized,
         "manual compact should keep the standard developer instructions"
