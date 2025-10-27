@@ -3,7 +3,8 @@
   "version": "0.1.0-alpha.7",
   "license": "Apache-2.0",
   "bin": {
-    "codex-responses-api-proxy": "bin/codex-responses-api-proxy.js"
+    "codex-responses-api-proxy": "bin/codex-responses-api-proxy.js",
+    "apply-patch": "bin/apply-patch.js"
   },
   "type": "module",
   "engines": {
