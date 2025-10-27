@@ -4,6 +4,7 @@ use codex_core::CodexAuth;
 use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
 use codex_core::built_in_model_providers;
+#[cfg(not(target_os = "windows"))]
 use codex_core::config::OPENAI_DEFAULT_MODEL;
 use codex_core::model_family::find_family_for_model;
 use codex_core::protocol::AskForApproval;
@@ -19,6 +20,7 @@ use core_test_support::load_default_config_for_test;
 use core_test_support::load_sse_fixture_with_id;
 use core_test_support::skip_if_no_network;
 use core_test_support::wait_for_event;
+#[cfg(not(target_os = "windows"))]
 use std::collections::HashMap;
 use tempfile::TempDir;
 use wiremock::Mock;
@@ -56,6 +58,7 @@ fn sse_completed(id: &str) -> String {
     load_sse_fixture_with_id("tests/fixtures/completed_template.json", id)
 }
 
+#[cfg(not(target_os = "windows"))]
 fn assert_tool_names(body: &serde_json::Value, expected_names: &[&str]) {
     assert_eq!(
         body["tools"]

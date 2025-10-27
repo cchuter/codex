@@ -15,8 +15,10 @@ use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
 use codex_core::NewConversation;
 use codex_core::built_in_model_providers;
+#[cfg(not(target_os = "windows"))]
 use codex_core::codex::compact::SUMMARIZATION_PROMPT;
 use codex_core::config::Config;
+#[cfg(not(target_os = "windows"))]
 use codex_core::config::OPENAI_DEFAULT_MODEL;
 use codex_core::protocol::ConversationPathResponseEvent;
 use codex_core::protocol::EventMsg;

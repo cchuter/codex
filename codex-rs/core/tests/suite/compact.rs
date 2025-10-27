@@ -16,6 +16,7 @@ use tempfile::TempDir;
 
 use codex_core::codex::compact::SUMMARIZATION_PROMPT;
 use core_test_support::responses::ev_assistant_message;
+#[cfg(not(target_os = "windows"))]
 use core_test_support::responses::ev_completed;
 use core_test_support::responses::ev_completed_with_tokens;
 use core_test_support::responses::ev_function_call;
@@ -28,6 +29,7 @@ use pretty_assertions::assert_eq;
 
 pub(super) const FIRST_REPLY: &str = "FIRST_REPLY";
 pub(super) const SUMMARY_TEXT: &str = "SUMMARY_ONLY_CONTEXT";
+#[cfg(not(target_os = "windows"))]
 const THIRD_USER_MSG: &str = "next turn";
 const AUTO_SUMMARY_TEXT: &str = "AUTO_SUMMARY";
 const FIRST_AUTO_MSG: &str = "token limit start";

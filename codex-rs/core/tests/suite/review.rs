@@ -3,11 +3,13 @@ use codex_core::CodexConversation;
 use codex_core::ContentItem;
 use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
+#[cfg(not(target_os = "windows"))]
 use codex_core::REVIEW_PROMPT;
 use codex_core::ResponseItem;
 use codex_core::built_in_model_providers;
 use codex_core::config::Config;
 use codex_core::protocol::ConversationPathResponseEvent;
+#[cfg(not(target_os = "windows"))]
 use codex_core::protocol::ENVIRONMENT_CONTEXT_OPEN_TAG;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::ExitedReviewModeEvent;
@@ -29,6 +31,7 @@ use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
+#[cfg(not(target_os = "windows"))]
 use tokio::io::AsyncWriteExt as _;
 use uuid::Uuid;
 use wiremock::Mock;
@@ -651,6 +654,7 @@ where
 }
 
 /// Create a conversation resuming from a rollout file, configured to talk to the provided mock server.
+#[cfg(not(target_os = "windows"))]
 #[expect(clippy::expect_used)]
 async fn resume_conversation_for_server<F>(
     server: &MockServer,
