@@ -58,13 +58,19 @@ impl Prompt {
             ToolSpec::Freeform(f) => f.name == "apply_patch",
             _ => false,
         });
+        // Always normalize line endings to ensure consistency across platforms
+        // On Windows, include_str! may embed CRLF line endings
+        // We need to normalize unconditionally to ensure consistent behavior
+        let base_normalized = base.replace("\r\n", "\n");
+        let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
+
         if self.base_instructions_override.is_none()
             && model.needs_special_apply_patch_instructions
             && !is_apply_patch_tool_present
         {
-            Cow::Owned(format!("{base}\n{APPLY_PATCH_TOOL_INSTRUCTIONS}"))
+            Cow::Owned(format!("{base_normalized}\n{apply_patch_normalized}"))
         } else {
-            Cow::Borrowed(base)
+            Cow::Owned(base_normalized)
         }
     }
 
@@ -433,18 +439,20 @@ mod tests {
         ];
         for test_case in test_cases {
             let model_family = find_family_for_model(test_case.slug).expect("known model slug");
+            // Normalize line endings for Windows compatibility
+            let base_normalized = model_family.clone().base_instructions.replace("\r\n", "\n");
+            let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
+
             let expected = if test_case.expects_apply_patch_instructions {
-                format!(
-                    "{}\n{}",
-                    model_family.clone().base_instructions,
-                    APPLY_PATCH_TOOL_INSTRUCTIONS
-                )
+                format!("{base_normalized}\n{apply_patch_normalized}")
             } else {
-                model_family.clone().base_instructions
+                base_normalized
             };
 
             let full = prompt.get_full_instructions(&model_family);
-            assert_eq!(full, expected);
+            // Normalize the actual result as well
+            let full_normalized = full.replace("\r\n", "\n");
+            assert_eq!(full_normalized, expected);
         }
     }
 

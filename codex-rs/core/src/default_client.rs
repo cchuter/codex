@@ -234,7 +234,7 @@ mod tests {
         use regex_lite::Regex;
         let user_agent = get_codex_user_agent();
         let re = Regex::new(
-            r"^codex_cli_rs/\d+\.\d+\.\d+ \(Mac OS \d+\.\d+\.\d+; (x86_64|arm64)\) (\S+)$",
+            r"^codex_cli_rs/\d+\.\d+\.\d+(-[\w\.]+)? \(Mac OS \d+\.\d+\.\d+; (x86_64|arm64)\) (\S+)$",
         )
         .unwrap();
         assert!(re.is_match(&user_agent));

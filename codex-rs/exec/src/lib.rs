@@ -191,7 +191,16 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         }
     };
 
+    // Ensure default config exists
+    if let Err(e) = codex_core::default_config::ensure_default_config().await {
+        // Don't fail if we can't create default config, just log it
+        debug!("Could not create default config: {e}");
+    }
+
     let config = Config::load_with_cli_overrides(cli_kv_overrides, overrides).await?;
+
+    // Ensure OSMI providers are authenticated
+    codex_core::osmi_auth::ensure_provider_auth(&config).await?;
 
     let otel = codex_core::otel_init::build_provider(&config, env!("CARGO_PKG_VERSION"));
 

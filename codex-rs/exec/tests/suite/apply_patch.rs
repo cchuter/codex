@@ -39,10 +39,10 @@ fn test_standalone_exec_cli_can_use_apply_patch() -> anyhow::Result<()> {
         .success()
         .stdout("Success. Updated the following files:\nM source.txt\n")
         .stderr(predicates::str::is_empty());
-    assert_eq!(
-        fs::read_to_string(absolute_path)?,
-        "modified by apply_patch\n"
-    );
+    // Normalize line endings for Windows compatibility
+    let content = fs::read_to_string(absolute_path)?;
+    let content_normalized = content.replace("\r\n", "\n");
+    assert_eq!(content_normalized, "modified by apply_patch\n");
     Ok(())
 }
 
@@ -91,7 +91,9 @@ async fn test_apply_patch_tool() -> anyhow::Result<()> {
     let final_path = tmp_path.join("test.md");
     let contents = std::fs::read_to_string(&final_path)
         .unwrap_or_else(|e| panic!("failed reading {}: {e}", final_path.display()));
-    assert_eq!(contents, "Final text\n");
+    // Normalize line endings for Windows compatibility
+    let contents_normalized = contents.replace("\r\n", "\n");
+    assert_eq!(contents_normalized, "Final text\n");
     Ok(())
 }
 
@@ -143,9 +145,10 @@ async fn test_apply_patch_freeform_tool() -> anyhow::Result<()> {
     let final_path = test.cwd_path().join("app.py");
     let contents = std::fs::read_to_string(&final_path)
         .unwrap_or_else(|e| panic!("failed reading {}: {e}", final_path.display()));
-    assert_eq!(
-        contents,
-        include_str!("../fixtures/apply_patch_freeform_final.txt")
-    );
+    // Normalize line endings for Windows compatibility
+    let contents_normalized = contents.replace("\r\n", "\n");
+    let expected_normalized =
+        include_str!("../fixtures/apply_patch_freeform_final.txt").replace("\r\n", "\n");
+    assert_eq!(contents_normalized, expected_normalized);
     Ok(())
 }

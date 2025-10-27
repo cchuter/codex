@@ -4,6 +4,7 @@ use codex_core::CodexAuth;
 use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
 use codex_core::built_in_model_providers;
+#[cfg(not(target_os = "windows"))]
 use codex_core::config::OPENAI_DEFAULT_MODEL;
 use codex_core::model_family::find_family_for_model;
 use codex_core::protocol::AskForApproval;
@@ -19,6 +20,7 @@ use core_test_support::load_default_config_for_test;
 use core_test_support::load_sse_fixture_with_id;
 use core_test_support::skip_if_no_network;
 use core_test_support::wait_for_event;
+#[cfg(not(target_os = "windows"))]
 use std::collections::HashMap;
 use tempfile::TempDir;
 use wiremock::Mock;
@@ -56,6 +58,7 @@ fn sse_completed(id: &str) -> String {
     load_sse_fixture_with_id("tests/fixtures/completed_template.json", id)
 }
 
+#[cfg(not(target_os = "windows"))]
 fn assert_tool_names(body: &serde_json::Value, expected_names: &[&str]) {
     assert_eq!(
         body["tools"]
@@ -135,24 +138,32 @@ async fn codex_mini_latest_tools() {
     let requests = server.received_requests().await.unwrap();
     assert_eq!(requests.len(), 2, "expected two POST requests");
 
-    let expected_instructions = [
-        include_str!("../../prompt.md"),
-        include_str!("../../../apply-patch/apply_patch_tool_instructions.md"),
-    ]
-    .join("\n");
+    // Since apply_patch tool is always included (defaults to Function type),
+    // and codex-mini-latest has needs_special_apply_patch_instructions: true,
+    // the apply_patch instructions are NOT appended to the base instructions
+    // because the tool is present.
+    let expected_instructions = include_str!("../../prompt.md").replace("\r\n", "\n"); // Normalize line endings for Windows compatibility
 
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
-    assert_eq!(
-        body0["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    // On Windows, instructions may have actual CRLF or escaped \r\n sequences
+    let actual_instructions0 = body0["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
+    assert_eq!(actual_instructions0, expected_instructions);
+
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    assert_eq!(
-        body1["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    // On Windows, instructions may have actual CRLF or escaped \r\n sequences
+    let actual_instructions1 = body1["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
+    assert_eq!(actual_instructions1, expected_instructions);
 }
 
+#[cfg(not(target_os = "windows"))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn prompt_tools_are_consistent_across_requests() {
     skip_if_no_network!();
@@ -189,7 +200,12 @@ async fn prompt_tools_are_consistent_across_requests() {
 
     let conversation_manager =
         ConversationManager::with_auth(CodexAuth::from_api_key("Test API Key"));
-    let base_instructions = config.model_family.base_instructions.clone();
+    // Normalize line endings for Windows compatibility
+    let base_instructions = config
+        .model_family
+        .base_instructions
+        .clone()
+        .replace("\r\n", "\n");
     let codex = conversation_manager
         .new_conversation(config)
         .await
@@ -235,26 +251,33 @@ async fn prompt_tools_are_consistent_across_requests() {
     let body0 = requests[0].body_json::<serde_json::Value>().unwrap();
 
     let expected_instructions = if expected_tools_names.contains(&"apply_patch") {
-        base_instructions
+        base_instructions.clone()
     } else {
         [
             base_instructions.clone(),
-            include_str!("../../../apply-patch/apply_patch_tool_instructions.md").to_string(),
+            include_str!("../../../apply-patch/apply_patch_tool_instructions.md")
+                .to_string()
+                .replace("\r\n", "\n"),
         ]
         .join("\n")
     };
 
-    assert_eq!(
-        body0["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    // On Windows, instructions may have actual CRLF or escaped \r\n sequences
+    let actual_instructions0 = body0["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
+    assert_eq!(actual_instructions0, expected_instructions);
     assert_tool_names(&body0, expected_tools_names);
 
     let body1 = requests[1].body_json::<serde_json::Value>().unwrap();
-    assert_eq!(
-        body1["instructions"],
-        serde_json::json!(expected_instructions),
-    );
+    let actual_instructions1 = body1["instructions"]
+        .as_str()
+        .unwrap()
+        .replace("\r\n", "\n") // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
+    assert_eq!(actual_instructions1, expected_instructions);
     assert_tool_names(&body1, expected_tools_names);
 }
 

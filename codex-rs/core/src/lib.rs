@@ -23,6 +23,7 @@ pub mod config_profile;
 pub mod config_types;
 mod conversation_history;
 pub mod custom_prompts;
+pub mod default_config;
 mod environment_context;
 pub mod error;
 pub mod exec;
@@ -106,4 +107,5 @@ pub use codex_protocol::models::LocalShellStatus;
 pub use codex_protocol::models::ReasoningItemContent;
 pub use codex_protocol::models::ResponseItem;
 
+pub mod osmi_auth;
 pub mod otel_init;

@@ -35,6 +35,7 @@ jobs:
         run: |
           cd codex-rs
           cargo build --release --bin osmiflow
+          cargo build --release --bin apply_patch
           cd ..
 
       # stage_npm_packages.py requires DotSlash when staging releases.
@@ -51,11 +52,13 @@ jobs:
 
           # Create vendor directory structure for CI builds
           VENDOR_DIR="${RUNNER_TEMP}/vendor"
-          mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/codex"
+          mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/osmiflow"
+          mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/apply_patch"
           mkdir -p "$VENDOR_DIR/x86_64-unknown-linux-gnu/path"
 
-          # Copy the built binary to vendor directory
-          cp codex-rs/target/release/osmiflow "$VENDOR_DIR/x86_64-unknown-linux-gnu/codex/osmiflow-x86_64-unknown-linux-gnu"
+          # Copy the built binaries to vendor directory
+          cp codex-rs/target/release/osmiflow "$VENDOR_DIR/x86_64-unknown-linux-gnu/osmiflow/osmiflow-x86_64-unknown-linux-gnu"
+          cp codex-rs/target/release/apply_patch "$VENDOR_DIR/x86_64-unknown-linux-gnu/apply_patch/apply_patch-x86_64-unknown-linux-gnu"
 
           # Create a placeholder for rg (ripgrep) since it's not built here
           touch "$VENDOR_DIR/x86_64-unknown-linux-gnu/path/rg"

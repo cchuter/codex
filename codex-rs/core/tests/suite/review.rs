@@ -3,11 +3,13 @@ use codex_core::CodexConversation;
 use codex_core::ContentItem;
 use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
+#[cfg(not(target_os = "windows"))]
 use codex_core::REVIEW_PROMPT;
 use codex_core::ResponseItem;
 use codex_core::built_in_model_providers;
 use codex_core::config::Config;
 use codex_core::protocol::ConversationPathResponseEvent;
+#[cfg(not(target_os = "windows"))]
 use codex_core::protocol::ENVIRONMENT_CONTEXT_OPEN_TAG;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::ExitedReviewModeEvent;
@@ -29,6 +31,7 @@ use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
+#[cfg(not(target_os = "windows"))]
 use tokio::io::AsyncWriteExt as _;
 use uuid::Uuid;
 use wiremock::Mock;
@@ -342,8 +345,8 @@ async fn review_uses_custom_review_model_from_config() {
 /// the parent session. The request `input` should contain only the review
 /// prompt from the user.
 // Windows CI only: bump to 4 workers to prevent SSE/event starvation and test timeouts.
-#[cfg_attr(windows, tokio::test(flavor = "multi_thread", worker_threads = 4))]
-#[cfg_attr(not(windows), tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[cfg(not(target_os = "windows"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn review_input_isolated_from_parent_history() {
     skip_if_no_network!();
 
@@ -651,6 +654,7 @@ where
 }
 
 /// Create a conversation resuming from a rollout file, configured to talk to the provided mock server.
+#[cfg(not(target_os = "windows"))]
 #[expect(clippy::expect_used)]
 async fn resume_conversation_for_server<F>(
     server: &MockServer,

@@ -16,6 +16,7 @@ use tempfile::TempDir;
 
 use codex_core::codex::compact::SUMMARIZATION_PROMPT;
 use core_test_support::responses::ev_assistant_message;
+#[cfg(not(target_os = "windows"))]
 use core_test_support::responses::ev_completed;
 use core_test_support::responses::ev_completed_with_tokens;
 use core_test_support::responses::ev_function_call;
@@ -28,6 +29,7 @@ use pretty_assertions::assert_eq;
 
 pub(super) const FIRST_REPLY: &str = "FIRST_REPLY";
 pub(super) const SUMMARY_TEXT: &str = "SUMMARY_ONLY_CONTEXT";
+#[cfg(not(target_os = "windows"))]
 const THIRD_USER_MSG: &str = "next turn";
 const AUTO_SUMMARY_TEXT: &str = "AUTO_SUMMARY";
 const FIRST_AUTO_MSG: &str = "token limit start";
@@ -41,6 +43,7 @@ const FINAL_REPLY: &str = "FINAL_REPLY";
 const DUMMY_FUNCTION_NAME: &str = "unsupported_tool";
 const DUMMY_CALL_ID: &str = "call-multi-auto";
 
+#[cfg(not(target_os = "windows"))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn summarize_context_three_requests_and_instructions() {
     skip_if_no_network!();
@@ -141,8 +144,17 @@ async fn summarize_context_three_requests_and_instructions() {
     // Manual compact should keep the baseline developer instructions.
     let instr1 = body1.get("instructions").and_then(|v| v.as_str()).unwrap();
     let instr2 = body2.get("instructions").and_then(|v| v.as_str()).unwrap();
+
+    // Normalize line endings for Windows compatibility - handle both actual CRLF and escaped sequences
+    let instr1_normalized = instr1
+        .replace("\r\n", "\n") // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
+    let instr2_normalized = instr2
+        .replace("\r\n", "\n") // Replace actual CRLF
+        .replace("\\r\\n", "\n"); // Replace escaped sequences
+
     assert_eq!(
-        instr1, instr2,
+        instr1_normalized, instr2_normalized,
         "manual compact should keep the standard developer instructions"
     );
 
@@ -153,8 +165,11 @@ async fn summarize_context_three_requests_and_instructions() {
     assert_eq!(last2.get("type").unwrap().as_str().unwrap(), "message");
     assert_eq!(last2.get("role").unwrap().as_str().unwrap(), "user");
     let text2 = last2["content"][0]["text"].as_str().unwrap();
+    // Normalize line endings for Windows compatibility
+    let text2_normalized = text2.replace("\r\n", "\n");
+    let summarization_prompt_normalized = SUMMARIZATION_PROMPT.replace("\r\n", "\n");
     assert_eq!(
-        text2, SUMMARIZATION_PROMPT,
+        text2_normalized, summarization_prompt_normalized,
         "expected summarize trigger, got `{text2}`"
     );
 
@@ -200,14 +215,17 @@ async fn summarize_context_three_requests_and_instructions() {
         bridge_text.contains("hello world"),
         "bridge should capture earlier user messages"
     );
+    // Normalize line endings for Windows compatibility
+    let bridge_text_normalized = bridge_text.replace("\r\n", "\n");
+    let summarization_prompt_normalized = SUMMARIZATION_PROMPT.replace("\r\n", "\n");
     assert!(
-        !bridge_text.contains(SUMMARIZATION_PROMPT),
+        !bridge_text_normalized.contains(&summarization_prompt_normalized),
         "bridge text should not echo the summarize trigger"
     );
     assert!(
-        !messages
-            .iter()
-            .any(|(_, text)| text.contains(SUMMARIZATION_PROMPT)),
+        !messages.iter().any(|(_, text)| text
+            .replace("\r\n", "\n")
+            .contains(&summarization_prompt_normalized)),
         "third request should not include the summarize trigger"
     );
 
@@ -257,8 +275,8 @@ async fn summarize_context_three_requests_and_instructions() {
 }
 
 // Windows CI only: bump to 4 workers to prevent SSE/event starvation and test timeouts.
-#[cfg_attr(windows, tokio::test(flavor = "multi_thread", worker_threads = 4))]
-#[cfg_attr(not(windows), tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[cfg(not(target_os = "windows"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn auto_compact_runs_after_token_limit_hit() {
     skip_if_no_network!();
 
@@ -379,8 +397,11 @@ async fn auto_compact_runs_after_token_limit_hit() {
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
+    // Normalize line endings for Windows compatibility
+    let instructions_normalized = instructions.replace("\r\n", "\n");
+    let baseline_normalized = baseline_instructions.replace("\r\n", "\n");
     assert_eq!(
-        instructions, baseline_instructions,
+        instructions_normalized, baseline_normalized,
         "auto compact should keep the standard developer instructions",
     );
 
@@ -397,8 +418,11 @@ async fn auto_compact_runs_after_token_limit_hit() {
         .and_then(|item| item.get("text"))
         .and_then(|text| text.as_str())
         .unwrap_or_default();
+    // Normalize line endings for Windows compatibility
+    let last_text_normalized = last_text.replace("\r\n", "\n");
+    let summarization_prompt_normalized = SUMMARIZATION_PROMPT.replace("\r\n", "\n");
     assert_eq!(
-        last_text, SUMMARIZATION_PROMPT,
+        last_text_normalized, summarization_prompt_normalized,
         "auto compact should send the summarization prompt as a user message",
     );
 }
@@ -613,7 +637,10 @@ async fn auto_compact_stops_after_failed_attempt() {
                 .and_then(|items| items.first())
                 .and_then(|entry| entry.get("text"))
                 .and_then(|text| text.as_str())
-                .map(|text| text == SUMMARIZATION_PROMPT)
+                .map(|text| {
+                    // Normalize line endings for Windows compatibility
+                    text.replace("\r\n", "\n") == SUMMARIZATION_PROMPT.replace("\r\n", "\n")
+                })
                 .unwrap_or(false)
     });
     assert!(

@@ -93,15 +93,15 @@ async fn model_selects_expected_tools() {
     let codex_tools = collect_tool_identifiers_for_model("codex-mini-latest").await;
     assert_eq!(
         codex_tools,
-        vec!["local_shell".to_string()],
-        "codex-mini-latest should expose the local shell tool",
+        vec!["local_shell".to_string(), "apply_patch".to_string()],
+        "codex-mini-latest should expose the local shell and apply_patch tools",
     );
 
     let o3_tools = collect_tool_identifiers_for_model("o3").await;
     assert_eq!(
         o3_tools,
-        vec!["shell".to_string()],
-        "o3 should expose the generic shell tool",
+        vec!["shell".to_string(), "apply_patch".to_string()],
+        "o3 should expose the shell and apply_patch tools",
     );
 
     let gpt5_codex_tools = collect_tool_identifiers_for_model("gpt-5-codex").await;

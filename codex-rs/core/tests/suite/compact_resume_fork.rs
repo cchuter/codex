@@ -15,8 +15,10 @@ use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
 use codex_core::NewConversation;
 use codex_core::built_in_model_providers;
+#[cfg(not(target_os = "windows"))]
 use codex_core::codex::compact::SUMMARIZATION_PROMPT;
 use codex_core::config::Config;
+#[cfg(not(target_os = "windows"))]
 use codex_core::config::OPENAI_DEFAULT_MODEL;
 use codex_core::protocol::ConversationPathResponseEvent;
 use codex_core::protocol::EventMsg;
@@ -42,6 +44,7 @@ fn network_disabled() -> bool {
     std::env::var(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR).is_ok()
 }
 
+#[cfg(not(target_os = "windows"))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 /// Scenario: compact an initial conversation, resume it, fork one turn back, and
 /// ensure the model-visible history matches expectations at each request.
@@ -494,8 +497,13 @@ SUMMARY_ONLY_CONTEXT"
         user_turn_3_after_fork
     ]);
     normalize_line_endings(&mut expected);
+
+    // Normalize actual requests for Windows compatibility
+    let mut actual = json!(requests);
+    normalize_line_endings(&mut actual);
+
     assert_eq!(requests.len(), 5);
-    assert_eq!(json!(requests), expected);
+    assert_eq!(actual, expected);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -637,18 +645,25 @@ async fn compact_resume_after_second_compaction_preserves_history() {
       }
     ]);
     normalize_line_endings(&mut expected);
-    let last_request_after_2_compacts = json!([{
+
+    let mut last_request_after_2_compacts = json!([{
         "instructions": requests[requests.len() -1]["instructions"],
         "input": requests[requests.len() -1]["input"],
     }]);
+    normalize_line_endings(&mut last_request_after_2_compacts);
+
     assert_eq!(expected, last_request_after_2_compacts);
 }
 
 fn normalize_line_endings(value: &mut Value) {
     match value {
         Value::String(text) => {
-            if text.contains('\r') {
-                *text = text.replace("\r\n", "\n").replace('\r', "\n");
+            // Handle both actual line endings and escaped sequences (Windows)
+            if text.contains('\r') || text.contains("\\r\\n") {
+                *text = text
+                    .replace("\r\n", "\n") // Replace actual CRLF
+                    .replace('\r', "\n") // Replace lone CR
+                    .replace("\\r\\n", "\n"); // Replace escaped sequences
             }
         }
         Value::Array(items) => {

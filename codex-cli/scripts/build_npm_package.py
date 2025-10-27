@@ -16,12 +16,13 @@ RESPONSES_API_PROXY_NPM_ROOT = REPO_ROOT / "codex-rs" / "responses-api-proxy" / 
 CODEX_SDK_ROOT = REPO_ROOT / "sdk" / "typescript"
 
 PACKAGE_NATIVE_COMPONENTS: dict[str, list[str]] = {
-    "codex": ["codex", "apply_patch", "rg"],
+    "codex": ["osmiflow", "apply_patch", "rg"],
     "codex-responses-api-proxy": ["codex-responses-api-proxy"],
-    "codex-sdk": ["codex"],
+    "codex-sdk": ["osmiflow"],
 }
 COMPONENT_DEST_DIR: dict[str, str] = {
-    "codex": "codex",
+    "osmiflow": "osmiflow",
+    "codex": "codex",  # Keep for backward compatibility if needed
     "codex-responses-api-proxy": "codex-responses-api-proxy",
     "apply_patch": "apply_patch",
     "rg": "path",
