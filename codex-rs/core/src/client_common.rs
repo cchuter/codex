@@ -441,7 +441,7 @@ mod tests {
             let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
 
             let expected = if test_case.expects_apply_patch_instructions {
-                format!("{}\n{}", base_normalized, apply_patch_normalized)
+                format!("{base_normalized}\n{apply_patch_normalized}")
             } else {
                 base_normalized
             };
