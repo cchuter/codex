@@ -59,21 +59,18 @@ impl Prompt {
             _ => false,
         });
         // Always normalize line endings to ensure consistency across platforms
-        // This avoids issues where include_str! may have different line endings
-        let base_normalized = if base.contains('\r') {
-            Cow::Owned(base.replace("\r\n", "\n"))
-        } else {
-            Cow::Borrowed(base)
-        };
+        // On Windows, include_str! may embed CRLF line endings
+        // We need to normalize unconditionally to ensure consistent behavior
+        let base_normalized = base.replace("\r\n", "\n");
+        let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
 
         if self.base_instructions_override.is_none()
             && model.needs_special_apply_patch_instructions
             && !is_apply_patch_tool_present
         {
-            let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
             Cow::Owned(format!("{base_normalized}\n{apply_patch_normalized}"))
         } else {
-            base_normalized
+            Cow::Owned(base_normalized)
         }
     }
 
