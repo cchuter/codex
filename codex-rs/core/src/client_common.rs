@@ -436,18 +436,24 @@ mod tests {
         ];
         for test_case in test_cases {
             let model_family = find_family_for_model(test_case.slug).expect("known model slug");
+            // Normalize line endings for Windows compatibility
+            let base_normalized = model_family.clone().base_instructions.replace("\r\n", "\n");
+            let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
+
             let expected = if test_case.expects_apply_patch_instructions {
                 format!(
                     "{}\n{}",
-                    model_family.clone().base_instructions,
-                    APPLY_PATCH_TOOL_INSTRUCTIONS
+                    base_normalized,
+                    apply_patch_normalized
                 )
             } else {
-                model_family.clone().base_instructions
+                base_normalized
             };
 
             let full = prompt.get_full_instructions(&model_family);
-            assert_eq!(full, expected);
+            // Normalize the actual result as well
+            let full_normalized = full.replace("\r\n", "\n");
+            assert_eq!(full_normalized, expected);
         }
     }
 
