@@ -394,8 +394,11 @@ async fn auto_compact_runs_after_token_limit_hit() {
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
+    // Normalize line endings for Windows compatibility
+    let instructions_normalized = instructions.replace("\r\n", "\n");
+    let baseline_normalized = baseline_instructions.replace("\r\n", "\n");
     assert_eq!(
-        instructions, baseline_instructions,
+        instructions_normalized, baseline_normalized,
         "auto compact should keep the standard developer instructions",
     );
 

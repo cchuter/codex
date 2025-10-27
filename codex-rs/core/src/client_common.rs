@@ -58,20 +58,22 @@ impl Prompt {
             ToolSpec::Freeform(f) => f.name == "apply_patch",
             _ => false,
         });
-        // Always normalize line endings for Windows compatibility
-        let base_normalized = base.replace("\r\n", "\n");
-
         if self.base_instructions_override.is_none()
             && model.needs_special_apply_patch_instructions
             && !is_apply_patch_tool_present
         {
+            // Normalize line endings for Windows compatibility when concatenating
+            let base_normalized = base.replace("\r\n", "\n");
             let apply_patch_normalized = APPLY_PATCH_TOOL_INSTRUCTIONS.replace("\r\n", "\n");
             Cow::Owned(format!("{base_normalized}\n{apply_patch_normalized}"))
         } else {
-            // Return normalized base even when not concatenating
-            if base.contains("\r\n") {
-                Cow::Owned(base_normalized)
-            } else {
+            // On Windows, always normalize line endings; on other platforms, return as-is
+            #[cfg(target_os = "windows")]
+            {
+                Cow::Owned(base.replace("\r\n", "\n"))
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
                 Cow::Borrowed(base)
             }
         }
