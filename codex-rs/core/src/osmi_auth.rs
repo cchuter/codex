@@ -48,10 +48,10 @@ async fn verify_api_key(api_key: &str, base_url: &str, model: &str) -> Result<bo
     // 502/503/504 = backend error (not an auth issue, consider it valid)
     // 200 = success
     match response.status().as_u16() {
-        200..=299 => Ok(true), // Success
+        200..=299 => Ok(true),  // Success
         401 | 403 => Ok(false), // Authentication failure
-        502 | 503 | 504 => Ok(true), // Backend error, but API key is likely valid
-        _ => Ok(false), // Other errors, assume auth failure
+        502..=504 => Ok(true),  // Backend error, but API key is likely valid
+        _ => Ok(false),         // Other errors, assume auth failure
     }
 }
 
