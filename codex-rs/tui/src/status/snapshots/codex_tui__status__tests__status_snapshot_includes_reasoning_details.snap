@@ -7,7 +7,7 @@ expression: sanitized
 
 ╭─────────────────────────────────────────────────────────────────────╮
 │  Model:            gpt-5-codex (reasoning high, summaries detailed) │
-│  Version:          v0.1.0-alpha.11                                  │
+│  Version:          v0.1.0-alpha.12                                  │
 │  Directory: [[workspace]]                                           │
 │  Approval:         on-request                                       │
 │  Sandbox:          workspace-write                                  │

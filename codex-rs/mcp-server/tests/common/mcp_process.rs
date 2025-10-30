@@ -144,7 +144,7 @@ impl McpProcess {
         let initialized = self.read_jsonrpc_message().await?;
         let os_info = os_info::get();
         let user_agent = format!(
-            "codex_cli_rs/0.1.0-alpha.11 ({} {}; {}) {} (elicitation test; 0.0.0)",
+            "codex_cli_rs/0.1.0-alpha.12 ({} {}; {}) {} (elicitation test; 0.0.0)",
             os_info.os_type(),
             os_info.version(),
             os_info.architecture().unwrap_or("unknown"),
@@ -163,7 +163,7 @@ impl McpProcess {
                     "serverInfo": {
                         "name": "codex-mcp-server",
                         "title": "Codex",
-                        "version": "0.1.0-alpha.11",
+                        "version": "0.1.0-alpha.12",
                         "user_agent": user_agent
                     },
                     "protocolVersion": mcp_types::MCP_SCHEMA_VERSION
