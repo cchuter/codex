@@ -44,6 +44,11 @@ class BinaryComponent:
 
 
 BINARY_COMPONENTS = {
+    "osmiflow": BinaryComponent(
+        artifact_prefix="osmiflow",
+        dest_dir="osmiflow",
+        binary_basename="osmiflow",
+    ),
     "codex": BinaryComponent(
         artifact_prefix="osmiflow",
         dest_dir="codex",
@@ -89,7 +94,7 @@ def parse_args() -> argparse.Namespace:
         choices=tuple(list(BINARY_COMPONENTS) + ["rg"]),
         help=(
             "Limit installation to the specified components."
-            " May be repeated. Defaults to 'codex' and 'rg'."
+            " May be repeated. Defaults to 'osmiflow' and 'rg'."
         ),
     )
     parser.add_argument(
@@ -111,7 +116,7 @@ def main() -> int:
     vendor_dir = codex_cli_root / VENDOR_DIR_NAME
     vendor_dir.mkdir(parents=True, exist_ok=True)
 
-    components = args.components or ["codex", "apply_patch", "rg"]
+    components = args.components or ["osmiflow", "apply_patch", "rg"]
 
     workflow_url = (args.workflow_url or DEFAULT_WORKFLOW_URL).strip()
     if not workflow_url:
