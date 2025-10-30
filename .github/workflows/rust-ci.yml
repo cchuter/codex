@@ -143,6 +143,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+
+      # Free up disk space on Ubuntu runners
+      - name: Free up disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get clean
+          df -h
+
       - uses: dtolnay/rust-toolchain@1.90
         with:
           targets: ${{ matrix.target }}

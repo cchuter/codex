@@ -22,11 +22,11 @@ struct Message {
 }
 
 /// Authenticates an API key against the OSMI API
-async fn verify_api_key(api_key: &str, base_url: &str) -> Result<bool> {
+async fn verify_api_key(api_key: &str, base_url: &str, model: &str) -> Result<bool> {
     let client = Client::new();
 
     let auth_request = AuthRequest {
-        model: "claude-3-5-sonnet-20241022".to_string(),
+        model: model.to_string(),
         messages: vec![Message {
             role: "user".to_string(),
             content: "Hi".to_string(),
@@ -43,8 +43,16 @@ async fn verify_api_key(api_key: &str, base_url: &str) -> Result<bool> {
         .await
         .context("Failed to send authentication request")?;
 
-    // Check if we got a successful response
-    Ok(response.status().is_success())
+    // Check the response status
+    // 401/403 = authentication failure
+    // 502/503/504 = backend error (not an auth issue, consider it valid)
+    // 200 = success
+    match response.status().as_u16() {
+        200..=299 => Ok(true),  // Success
+        401 | 403 => Ok(false), // Authentication failure
+        502..=504 => Ok(true),  // Backend error, but API key is likely valid
+        _ => Ok(false),         // Other errors, assume auth failure
+    }
 }
 
 /// Prompts the user for an API key via stdin
@@ -74,6 +82,7 @@ pub async fn verify_osmi_auth(
     provider_name: &str,
     base_url: &str,
     env_key_name: &str,
+    model: &str,
 ) -> Result<String> {
     // Skip authentication in test environments
     if is_test_environment() {
@@ -84,7 +93,7 @@ pub async fn verify_osmi_auth(
     let api_key = match std::env::var(env_key_name) {
         Ok(key) if !key.trim().is_empty() => {
             // API key exists, verify it works
-            if verify_api_key(&key, base_url).await? {
+            if verify_api_key(&key, base_url, model).await? {
                 tracing::debug!("Using existing {env_key_name} from environment");
                 key
             } else {
@@ -93,7 +102,7 @@ pub async fn verify_osmi_auth(
                 let new_key = prompt_for_api_key(env_key_name)?;
 
                 // Verify the new key
-                if !verify_api_key(&new_key, base_url).await? {
+                if !verify_api_key(&new_key, base_url, model).await? {
                     anyhow::bail!("Invalid API key for {provider_name}");
                 }
 
@@ -112,7 +121,7 @@ pub async fn verify_osmi_auth(
             let api_key = prompt_for_api_key(env_key_name)?;
 
             // Verify the API key
-            if !verify_api_key(&api_key, base_url).await? {
+            if !verify_api_key(&api_key, base_url, model).await? {
                 anyhow::bail!("Invalid API key for {provider_name}");
             }
 
@@ -148,8 +157,8 @@ pub async fn ensure_provider_auth(config: &crate::config::Config) -> Result<()> 
                     .cloned()
                     .unwrap_or_else(|| "https://models.osmi.ai/v1".to_string());
 
-                // Verify authentication
-                verify_osmi_auth(&provider_info.name, &base_url, env_key).await?;
+                // Verify authentication using the configured model
+                verify_osmi_auth(&provider_info.name, &base_url, env_key, &config.model).await?;
             }
             // Note: Other providers could be handled here in the future
         }
