@@ -66,6 +66,42 @@ const PRESETS: &[ModelPreset] = &[
         model: "gpt-5",
         effort: Some(ReasoningEffort::High),
     },
+    // OSMI models
+    ModelPreset {
+        id: "glm-4.6",
+        label: "glm-4.6",
+        description: "GLM-4.6 model hosted on OSMI",
+        model: "glm-4.6",
+        effort: None,
+    },
+    ModelPreset {
+        id: "osmi-gala-glm-4.6",
+        label: "osmi/gala-glm-4.6",
+        description: "Gala-powered GLM-4.6 model on OSMI",
+        model: "osmi/gala-glm-4.6",
+        effort: None,
+    },
+    ModelPreset {
+        id: "osmi-qwen3-next-80b",
+        label: "osmi/qwen3-next-80b",
+        description: "Qwen3 Next 80B model on OSMI",
+        model: "osmi/qwen3-next-80b",
+        effort: None,
+    },
+    ModelPreset {
+        id: "claude-3-opus",
+        label: "claude-3-opus-20240229",
+        description: "Claude 3 Opus model on OSMI",
+        model: "claude-3-opus-20240229",
+        effort: None,
+    },
+    ModelPreset {
+        id: "claude-3-sonnet",
+        label: "claude-3-sonnet-20240229",
+        description: "Claude 3 Sonnet model on OSMI",
+        model: "claude-3-sonnet-20240229",
+        effort: None,
+    },
 ];
 
 pub fn builtin_model_presets(_auth_mode: Option<AuthMode>) -> Vec<ModelPreset> {
