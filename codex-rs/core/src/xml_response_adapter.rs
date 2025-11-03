@@ -30,7 +30,10 @@ impl XmlResponseAdapter {
                     debug!("Found XML tags in JSON content field: {}", content);
                     let result = self.transform_xml_in_json(json_chunk, &content);
                     if let Some(ref transformed) = result {
-                        debug!("Transformed result: {}", serde_json::to_string_pretty(transformed).unwrap_or_default());
+                        debug!(
+                            "Transformed result: {}",
+                            serde_json::to_string_pretty(transformed).unwrap_or_default()
+                        );
                     }
                     return result;
                 }
@@ -62,21 +65,21 @@ impl XmlResponseAdapter {
                 // Handle different response formats
                 if let Some(delta) = choices.get_mut("delta") {
                     // For streaming responses - merge fields from parsed into delta
-                    if let Some(delta_obj) = delta.as_object_mut() {
-                        if let Some(parsed_obj) = parsed.as_object() {
-                            // Merge all fields from parsed into delta
-                            for (key, value) in parsed_obj {
-                                delta_obj.insert(key.clone(), value.clone());
-                            }
+                    if let Some(delta_obj) = delta.as_object_mut()
+                        && let Some(parsed_obj) = parsed.as_object()
+                    {
+                        // Merge all fields from parsed into delta
+                        for (key, value) in parsed_obj {
+                            delta_obj.insert(key.clone(), value.clone());
                         }
                     }
                 } else if let Some(message) = choices.get_mut("message") {
                     // For non-streaming responses - merge fields
-                    if let Some(message_obj) = message.as_object_mut() {
-                        if let Some(parsed_obj) = parsed.as_object() {
-                            for (key, value) in parsed_obj {
-                                message_obj.insert(key.clone(), value.clone());
-                            }
+                    if let Some(message_obj) = message.as_object_mut()
+                        && let Some(parsed_obj) = parsed.as_object()
+                    {
+                        for (key, value) in parsed_obj {
+                            message_obj.insert(key.clone(), value.clone());
                         }
                     }
                 }
@@ -326,13 +329,19 @@ I'll create a gSwap trading bot that alternates between buying and selling a fix
         let delta = &result["choices"][0]["delta"];
 
         // Verify the transformation worked
-        assert!(delta["reasoning"].is_object(), "Should have reasoning field");
+        assert!(
+            delta["reasoning"].is_object(),
+            "Should have reasoning field"
+        );
         assert_eq!(
             delta["reasoning"]["text"].as_str().unwrap().trim(),
             "I'll create a gSwap trading bot that alternates between buying and selling a fixed amount every minute. Let me start by exploring the codebase structure to understand how to integrate with gSwap."
         );
 
-        assert!(delta["tool_calls"].is_array(), "Should have tool_calls field");
+        assert!(
+            delta["tool_calls"].is_array(),
+            "Should have tool_calls field"
+        );
         let tool_calls = delta["tool_calls"].as_array().unwrap();
         assert_eq!(tool_calls.len(), 1, "Should have one tool call");
 
@@ -345,10 +354,22 @@ I'll create a gSwap trading bot that alternates between buying and selling a fix
         // Verify no XML tags remain in content
         if let Some(content) = delta.get("content") {
             let content_str = content.as_str().unwrap();
-            assert!(!content_str.contains("<think>"), "Should not contain <think> tags");
-            assert!(!content_str.contains("<tool_call>"), "Should not contain <tool_call> tags");
-            assert!(!content_str.contains("<arg_key>"), "Should not contain <arg_key> tags");
-            assert!(!content_str.contains("<arg_value>"), "Should not contain <arg_value> tags");
+            assert!(
+                !content_str.contains("<think>"),
+                "Should not contain <think> tags"
+            );
+            assert!(
+                !content_str.contains("<tool_call>"),
+                "Should not contain <tool_call> tags"
+            );
+            assert!(
+                !content_str.contains("<arg_key>"),
+                "Should not contain <arg_key> tags"
+            );
+            assert!(
+                !content_str.contains("<arg_value>"),
+                "Should not contain <arg_value> tags"
+            );
         }
     }
 }
