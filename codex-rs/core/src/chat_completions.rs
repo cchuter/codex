@@ -11,6 +11,7 @@ use crate::error::UnexpectedResponseError;
 use crate::model_family::ModelFamily;
 use crate::openai_tools::create_tools_json_for_chat_completions_api;
 use crate::util::backoff;
+use crate::xml_response_adapter::XmlResponseAdapter;
 use bytes::Bytes;
 use codex_otel::otel_event_manager::OtelEventManager;
 use codex_protocol::models::ContentItem;
@@ -310,11 +311,20 @@ pub(crate) async fn stream_chat_completions(
             Ok(resp) if resp.status().is_success() => {
                 let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent>>(1600);
                 let stream = resp.bytes_stream().map_err(CodexErr::Reqwest);
+
+                // Create XML adapter if needed for models like glm-4.6
+                let xml_adapter = if model_family.slug.contains("glm-") {
+                    Some(XmlResponseAdapter::new(model_family.slug.clone()))
+                } else {
+                    None
+                };
+
                 tokio::spawn(process_chat_sse(
                     stream,
                     tx_event,
                     provider.stream_idle_timeout(),
                     otel_event_manager.clone(),
+                    xml_adapter,
                 ));
                 return Ok(ResponseStream { rx_event });
             }
@@ -366,6 +376,7 @@ async fn process_chat_sse<S>(
     tx_event: mpsc::Sender<Result<ResponseEvent>>,
     idle_timeout: Duration,
     otel_event_manager: OtelEventManager,
+    xml_adapter: Option<XmlResponseAdapter>,
 ) where
     S: Stream<Item = Result<Bytes>> + Unpin,
 {
@@ -457,10 +468,25 @@ async fn process_chat_sse<S>(
             return;
         }
 
-        // Parse JSON chunk
-        let chunk: serde_json::Value = match serde_json::from_str(&sse.data) {
-            Ok(v) => v,
-            Err(_) => continue,
+        // Parse JSON chunk, optionally transforming XML if adapter is present
+        let chunk: serde_json::Value = if let Some(ref adapter) = xml_adapter {
+            // Try to transform XML tags if present
+            if let Some(transformed) = adapter.transform_chunk(&sse.data) {
+                trace!("Transformed XML response to JSON: {transformed:?}");
+                transformed
+            } else {
+                // Fallback to normal JSON parsing
+                match serde_json::from_str(&sse.data) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                }
+            }
+        } else {
+            // Normal JSON parsing without transformation
+            match serde_json::from_str(&sse.data) {
+                Ok(v) => v,
+                Err(_) => continue,
+            }
         };
         trace!("chat_completions received SSE chunk: {chunk:?}");
 
