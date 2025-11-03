@@ -27,8 +27,12 @@ impl XmlResponseAdapter {
                 if let Some(content) = extract_assistant_content(&json_chunk)
                     && contains_xml_tags(&content)
                 {
-                    debug!("Found XML in JSON content, transforming");
-                    return self.transform_xml_in_json(json_chunk, &content);
+                    debug!("Found XML tags in JSON content field: {}", content);
+                    let result = self.transform_xml_in_json(json_chunk, &content);
+                    if let Some(ref transformed) = result {
+                        debug!("Transformed result: {}", serde_json::to_string_pretty(transformed).unwrap_or_default());
+                    }
+                    return result;
                 }
                 return Some(json_chunk);
             }
@@ -49,7 +53,7 @@ impl XmlResponseAdapter {
         let parsed = self.parse_xml_content(content);
 
         if let Some(parsed) = parsed {
-            // Replace the content with the parsed version
+            // Merge the parsed content into the existing delta/message
             if let Some(choices) = json_chunk
                 .get_mut("choices")
                 .and_then(|c| c.as_array_mut())
@@ -57,11 +61,24 @@ impl XmlResponseAdapter {
             {
                 // Handle different response formats
                 if let Some(delta) = choices.get_mut("delta") {
-                    // For streaming responses
-                    *delta = parsed;
+                    // For streaming responses - merge fields from parsed into delta
+                    if let Some(delta_obj) = delta.as_object_mut() {
+                        if let Some(parsed_obj) = parsed.as_object() {
+                            // Merge all fields from parsed into delta
+                            for (key, value) in parsed_obj {
+                                delta_obj.insert(key.clone(), value.clone());
+                            }
+                        }
+                    }
                 } else if let Some(message) = choices.get_mut("message") {
-                    // For non-streaming responses
-                    *message = parsed;
+                    // For non-streaming responses - merge fields
+                    if let Some(message_obj) = message.as_object_mut() {
+                        if let Some(parsed_obj) = parsed.as_object() {
+                            for (key, value) in parsed_obj {
+                                message_obj.insert(key.clone(), value.clone());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -85,6 +102,7 @@ impl XmlResponseAdapter {
 
     /// Parse XML content and extract structured data
     fn parse_xml_content(&self, content: &str) -> Option<Value> {
+        debug!("Parsing XML content: {}", content);
         let mut delta = json!({});
         let mut has_content = false;
         let mut tool_calls = Vec::new();
@@ -93,6 +111,7 @@ impl XmlResponseAdapter {
         let think_re = Regex::new(r"<think>([\s\S]*?)</think>").ok()?;
         if let Some(cap) = think_re.captures(content) {
             let reasoning_text = cap.get(1)?.as_str().trim();
+            debug!("Found reasoning text: {}", reasoning_text);
             delta["reasoning"] = json!({
                 "text": reasoning_text
             });
@@ -104,6 +123,7 @@ impl XmlResponseAdapter {
             if let Some(tool_content) = cap.get(1)
                 && let Some(tool_call) = self.parse_tool_call(tool_content.as_str())
             {
+                debug!("Found tool call: {:?}", tool_call);
                 tool_calls.push(tool_call);
                 has_content = true;
             }
@@ -111,8 +131,9 @@ impl XmlResponseAdapter {
 
         // If we found tool calls, add them to delta
         if !tool_calls.is_empty() {
+            debug!("Adding {} tool calls to delta", tool_calls.len());
             delta["tool_calls"] = json!(tool_calls);
-            return Some(delta);
+            has_content = true;
         }
 
         // Extract plain text (outside of XML tags)
@@ -274,5 +295,60 @@ Let me help you with that.
 
         assert!(delta["reasoning"].is_object());
         assert!(delta["tool_calls"].is_array());
+    }
+
+    #[test]
+    fn test_user_reported_xml() {
+        let adapter = XmlResponseAdapter::new("glm-4.6".to_string());
+
+        // This is the exact content the user is seeing
+        let xml = r#"<think>
+I'll create a gSwap trading bot that alternates between buying and selling a fixed amount every minute. Let me start by exploring the codebase structure to understand how to integrate with gSwap.
+</think>
+<tool_call>update_plan
+<arg_key>plan</arg_key>
+<arg_value>[{"step": "Explore codex-rs structure and gSwap integration", "status": "in_progress"}, {"step": "Create trading bot with alternating buy/sell logic", "status": "pending"}]</arg_value>
+</tool_call>"#;
+
+        // Test with JSON-wrapped content (as it comes from the API)
+        let json_chunk = serde_json::json!({
+            "choices": [{
+                "index": 0,
+                "delta": {
+                    "content": xml
+                },
+                "finish_reason": null
+            }]
+        });
+
+        // Transform the chunk
+        let result = adapter.transform_chunk(&json_chunk.to_string()).unwrap();
+        let delta = &result["choices"][0]["delta"];
+
+        // Verify the transformation worked
+        assert!(delta["reasoning"].is_object(), "Should have reasoning field");
+        assert_eq!(
+            delta["reasoning"]["text"].as_str().unwrap().trim(),
+            "I'll create a gSwap trading bot that alternates between buying and selling a fixed amount every minute. Let me start by exploring the codebase structure to understand how to integrate with gSwap."
+        );
+
+        assert!(delta["tool_calls"].is_array(), "Should have tool_calls field");
+        let tool_calls = delta["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 1, "Should have one tool call");
+
+        let tool_call = &tool_calls[0];
+        assert_eq!(
+            tool_call["function"]["name"].as_str().unwrap(),
+            "update_plan"
+        );
+
+        // Verify no XML tags remain in content
+        if let Some(content) = delta.get("content") {
+            let content_str = content.as_str().unwrap();
+            assert!(!content_str.contains("<think>"), "Should not contain <think> tags");
+            assert!(!content_str.contains("<tool_call>"), "Should not contain <tool_call> tags");
+            assert!(!content_str.contains("<arg_key>"), "Should not contain <arg_key> tags");
+            assert!(!content_str.contains("<arg_value>"), "Should not contain <arg_value> tags");
+        }
     }
 }
