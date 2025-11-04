@@ -313,7 +313,8 @@ pub(crate) async fn stream_chat_completions(
                 let stream = resp.bytes_stream().map_err(CodexErr::Reqwest);
 
                 // Create XML adapter if needed for models like glm-4.6
-                let xml_adapter = if model_family.slug.contains("glm-") {
+                let xml_adapter = if model_family.slug.contains("glm") {
+                    debug!("Creating XML adapter for model: {}", model_family.slug);
                     Some(XmlResponseAdapter::new(model_family.slug.clone()))
                 } else {
                     None
