@@ -316,7 +316,10 @@ pub(crate) async fn stream_chat_completions(
                 debug!("Model family slug: '{}'", model_family.slug);
                 debug!("Provider name: {}", provider.name);
                 let xml_adapter = if model_family.slug.contains("glm") {
-                    debug!("✓ Creating XML adapter for GLM model: {}", model_family.slug);
+                    debug!(
+                        "✓ Creating XML adapter for GLM model: {}",
+                        model_family.slug
+                    );
                     Some(XmlResponseAdapter::new(model_family.slug.clone()))
                 } else {
                     debug!("✗ No XML adapter needed for model: {}", model_family.slug);

@@ -79,20 +79,25 @@ impl XmlResponseAdapter {
             {
                 // Handle different response formats
                 if let Some(delta) = choices.get_mut("delta") {
-                    // For streaming responses - merge fields from parsed into delta
+                    // For streaming responses - replace delta content with parsed content
                     if let Some(delta_obj) = delta.as_object_mut()
                         && let Some(parsed_obj) = parsed.as_object()
                     {
+                        // Clear the original content field with XML tags
+                        delta_obj.remove("content");
                         // Merge all fields from parsed into delta
                         for (key, value) in parsed_obj {
                             delta_obj.insert(key.clone(), value.clone());
                         }
                     }
                 } else if let Some(message) = choices.get_mut("message") {
-                    // For non-streaming responses - merge fields
+                    // For non-streaming responses - replace message content with parsed content
                     if let Some(message_obj) = message.as_object_mut()
                         && let Some(parsed_obj) = parsed.as_object()
                     {
+                        // Clear the original content field with XML tags
+                        message_obj.remove("content");
+                        // Merge all fields from parsed into message
                         for (key, value) in parsed_obj {
                             message_obj.insert(key.clone(), value.clone());
                         }
@@ -124,15 +129,37 @@ impl XmlResponseAdapter {
         let mut delta = json!({});
         let mut has_content = false;
         let mut tool_calls = Vec::new();
+        let mut reasoning_text = String::new();
 
         // Extract and handle <think> tags (reasoning)
+        // Handle both formats: <think>content</think> and <think></think>\ncontent
         let think_re = Regex::new(r"<think>([\s\S]*?)</think>").ok()?;
+
         if let Some(cap) = think_re.captures(content) {
-            let reasoning_text = cap.get(1)?.as_str().trim();
-            debug!("Found reasoning text: {}", reasoning_text);
-            delta["reasoning"] = json!({
-                "text": reasoning_text
-            });
+            // Check if think tags have content inside
+            let inner_text = cap.get(1).map(|m| m.as_str().trim()).unwrap_or("");
+            if !inner_text.is_empty() {
+                reasoning_text = inner_text.to_string();
+                debug!("Found reasoning text inside think tags: {}", reasoning_text);
+            } else {
+                // Think tags are empty, check for text immediately after </think>
+                let after_think_re = Regex::new(r"</think>\s*\n?([^\n<]+)").ok()?;
+                if let Some(after_cap) = after_think_re.captures(content)
+                    && let Some(text_after) = after_cap.get(1) {
+                        reasoning_text = text_after.as_str().trim().to_string();
+                        debug!(
+                            "Found reasoning text after empty think tags: {}",
+                            reasoning_text
+                        );
+                    }
+            }
+
+            if !reasoning_text.is_empty() {
+                delta["reasoning"] = json!({
+                    "text": reasoning_text
+                });
+                has_content = true;
+            }
         }
 
         // Extract and handle <tool_call> tags
@@ -154,20 +181,33 @@ impl XmlResponseAdapter {
             has_content = true;
         }
 
-        // Extract plain text (outside of XML tags)
+        // Extract plain text (text that's not inside XML tags and not reasoning)
+        // First, remove the XML blocks we've already processed
         let mut plain_text = content.to_string();
 
-        // Remove all XML tags to get plain content
-        let tag_re = Regex::new(r"<[^>]+>[\s\S]*?</[^>]+>").ok()?;
-        plain_text = tag_re.replace_all(&plain_text, "").to_string();
+        // Remove think tags and any reasoning text we captured
+        // First remove non-empty think tags and their content
+        let think_with_content_re = Regex::new(r"<think>[\s\S]*?</think>").ok()?;
+        plain_text = think_with_content_re.replace_all(&plain_text, "").to_string();
 
-        // Also remove self-closing tags
-        let self_closing_re = Regex::new(r"<[^>]+/>").ok()?;
-        plain_text = self_closing_re.replace_all(&plain_text, "").to_string();
+        // Then clean up any text that immediately followed empty think tags (already in reasoning)
+        if !reasoning_text.is_empty() {
+            plain_text = plain_text.replace(&reasoning_text, "");
+        }
 
+        // Remove tool_call blocks completely
+        let tool_call_block_re = Regex::new(r"<tool_call>[\s\S]*?</tool_call>").ok()?;
+        plain_text = tool_call_block_re.replace_all(&plain_text, "").to_string();
+
+        // Clean up any remaining XML tags
+        let remaining_tags_re = Regex::new(r"<[^>]+>").ok()?;
+        plain_text = remaining_tags_re.replace_all(&plain_text, "").to_string();
+
+        // Clean up extra whitespace
         plain_text = plain_text.trim().to_string();
 
-        if !plain_text.is_empty() {
+        // Only add content if we have plain text that's not already in reasoning
+        if !plain_text.is_empty() && plain_text != reasoning_text {
             delta["content"] = json!(plain_text);
             has_content = true;
         }
@@ -334,6 +374,42 @@ Let me help you with that.
     }
 
     #[test]
+    fn test_empty_think_tags_with_text_after() {
+        let adapter = XmlResponseAdapter::new("glm-4.6".to_string());
+
+        // This is the ACTUAL format the user is seeing with empty think tags
+        let xml = r#"<think></think>
+I'll create a gSwap trading bot that alternates between buying and selling a fixed amount every minute. Let me start by exploring the existing codebase structure to understand how gSwap works.
+<tool_call>update_plan
+<arg_key>plan</arg_key>
+<arg_value>[{"step": "Explore existing gSwap codebase structure", "status": "in_progress"}, {"step": "Create trading bot with alternating buy/sell logic", "status": "pending"}]</arg_value>
+</tool_call>"#;
+
+        let result = adapter.parse_xml_content(xml).unwrap();
+
+        // Check reasoning was extracted from after the empty think tags
+        assert!(result["reasoning"].is_object(), "Should have reasoning");
+        assert!(
+            result["reasoning"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("gSwap trading bot")
+        );
+
+        // Check tool calls were extracted
+        assert!(result["tool_calls"].is_array(), "Should have tool_calls");
+        assert_eq!(result["tool_calls"][0]["function"]["name"], "update_plan");
+
+        // Check no XML tags remain
+        if let Some(content) = result.get("content") {
+            let content_str = content.as_str().unwrap();
+            assert!(!content_str.contains("<think>"));
+            assert!(!content_str.contains("</think>"));
+            assert!(!content_str.contains("<tool_call>"));
+        }
+    }
+
+    #[test]
     fn test_user_reported_xml() {
         let adapter = XmlResponseAdapter::new("glm-4.6".to_string());
 
@@ -387,9 +463,11 @@ I'll create a gSwap trading bot that alternates between buying and selling a fix
         // Verify no XML tags remain in content
         if let Some(content) = delta.get("content") {
             let content_str = content.as_str().unwrap();
+            println!("Content field after transformation: '{}'", content_str);
             assert!(
                 !content_str.contains("<think>"),
-                "Should not contain <think> tags"
+                "Should not contain <think> tags, but got: {}",
+                content_str
             );
             assert!(
                 !content_str.contains("<tool_call>"),
