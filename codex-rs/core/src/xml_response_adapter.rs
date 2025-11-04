@@ -19,49 +19,51 @@ impl XmlResponseAdapter {
 
     /// Transform XML-formatted response chunk into OpenAI JSON format
     pub fn transform_chunk(&self, raw_data: &str) -> Option<Value> {
-        debug!("=== XML Adapter: transform_chunk called ===");
-        debug!("Raw data: {}", raw_data);
+        eprintln!("🔍 XML ADAPTER transform_chunk CALLED!");
+        eprintln!("  Raw data length: {}", raw_data.len());
+        eprintln!("  Raw data (first 300 chars): {}", raw_data.chars().take(300).collect::<String>());
 
         // First check if this already looks like JSON
         if raw_data.trim().starts_with('{') {
-            debug!("Data starts with '{{' - attempting JSON parse");
+            eprintln!("📋 Data starts with '{{' - attempting JSON parse");
             // If it's already JSON, check if it needs transformation
             if let Ok(json_chunk) = serde_json::from_str::<Value>(raw_data) {
-                debug!("Successfully parsed as JSON");
+                eprintln!("✅ Successfully parsed as JSON");
                 // Check if there's text content that might contain XML
                 if let Some(content) = extract_assistant_content(&json_chunk) {
-                    debug!("Extracted assistant content: {}", content);
+                    eprintln!("📝 Extracted assistant content (first 200 chars): {}", content.chars().take(200).collect::<String>());
                     if contains_xml_tags(&content) {
-                        debug!("✓ XML tags detected in content field!");
-                        debug!("Found XML tags in JSON content field: {}", content);
+                        eprintln!("🎯 XML TAGS DETECTED IN CONTENT!");
+                        eprintln!("  Content with XML: {}", content);
                         let result = self.transform_xml_in_json(json_chunk, &content);
                         if let Some(ref transformed) = result {
-                            debug!(
-                                "Transformed result: {}",
-                                serde_json::to_string_pretty(transformed).unwrap_or_default()
-                            );
+                            eprintln!("✨ TRANSFORMATION COMPLETE!");
+                            eprintln!("  Result: {}", serde_json::to_string(transformed).unwrap_or_default());
                         }
                         return result;
                     } else {
-                        debug!("✗ No XML tags found in content");
+                        eprintln!("❌ NO XML tags found in content");
+                        eprintln!("  Content was: {}", content);
                     }
                 } else {
-                    debug!("✗ No assistant content found in JSON chunk");
+                    eprintln!("❌ No assistant content found in JSON chunk");
+                    eprintln!("  JSON structure: {}", serde_json::to_string(&json_chunk).unwrap_or_default());
                 }
                 return Some(json_chunk);
             } else {
-                debug!("Failed to parse as JSON");
+                eprintln!("❌ Failed to parse as JSON");
             }
         } else {
-            debug!("Data does not start with '{{' - checking for pure XML");
+            eprintln!("📋 Data does NOT start with '{{' - checking for pure XML");
         }
 
         // If it's pure XML or mixed content, parse it
         if contains_xml_tags(raw_data) {
-            debug!("Transforming pure XML response");
+            eprintln!("🎯 Pure XML detected - transforming!");
             return self.parse_xml_response(raw_data);
         }
 
+        eprintln!("⚠️ No JSON or XML detected - returning None");
         None
     }
 
