@@ -19,26 +19,41 @@ impl XmlResponseAdapter {
 
     /// Transform XML-formatted response chunk into OpenAI JSON format
     pub fn transform_chunk(&self, raw_data: &str) -> Option<Value> {
+        debug!("=== XML Adapter: transform_chunk called ===");
+        debug!("Raw data: {}", raw_data);
+
         // First check if this already looks like JSON
         if raw_data.trim().starts_with('{') {
+            debug!("Data starts with '{{' - attempting JSON parse");
             // If it's already JSON, check if it needs transformation
             if let Ok(json_chunk) = serde_json::from_str::<Value>(raw_data) {
+                debug!("Successfully parsed as JSON");
                 // Check if there's text content that might contain XML
-                if let Some(content) = extract_assistant_content(&json_chunk)
-                    && contains_xml_tags(&content)
-                {
-                    debug!("Found XML tags in JSON content field: {}", content);
-                    let result = self.transform_xml_in_json(json_chunk, &content);
-                    if let Some(ref transformed) = result {
-                        debug!(
-                            "Transformed result: {}",
-                            serde_json::to_string_pretty(transformed).unwrap_or_default()
-                        );
+                if let Some(content) = extract_assistant_content(&json_chunk) {
+                    debug!("Extracted assistant content: {}", content);
+                    if contains_xml_tags(&content) {
+                        debug!("✓ XML tags detected in content field!");
+                        debug!("Found XML tags in JSON content field: {}", content);
+                        let result = self.transform_xml_in_json(json_chunk, &content);
+                        if let Some(ref transformed) = result {
+                            debug!(
+                                "Transformed result: {}",
+                                serde_json::to_string_pretty(transformed).unwrap_or_default()
+                            );
+                        }
+                        return result;
+                    } else {
+                        debug!("✗ No XML tags found in content");
                     }
-                    return result;
+                } else {
+                    debug!("✗ No assistant content found in JSON chunk");
                 }
                 return Some(json_chunk);
+            } else {
+                debug!("Failed to parse as JSON");
             }
+        } else {
+            debug!("Data does not start with '{{' - checking for pure XML");
         }
 
         // If it's pure XML or mixed content, parse it
@@ -227,28 +242,46 @@ fn contains_xml_tags(content: &str) -> bool {
 
 /// Extract assistant content from a JSON chunk
 fn extract_assistant_content(json_chunk: &Value) -> Option<String> {
+    debug!("Extracting assistant content from JSON chunk");
+
     // Try streaming format
-    if let Some(content) = json_chunk
-        .get("choices")?
-        .get(0)?
-        .get("delta")?
-        .get("content")?
-        .as_str()
-    {
-        return Some(content.to_string());
+    if let Some(choices) = json_chunk.get("choices") {
+        debug!("Found 'choices' field");
+        if let Some(choice) = choices.get(0) {
+            debug!("Found first choice");
+            if let Some(delta) = choice.get("delta") {
+                debug!("Found 'delta' field (streaming format)");
+                if let Some(content) = delta.get("content") {
+                    debug!("Found 'content' in delta");
+                    if let Some(content_str) = content.as_str() {
+                        debug!("Content as string: {}", content_str);
+                        return Some(content_str.to_string());
+                    } else {
+                        debug!("Content is not a string");
+                    }
+                } else {
+                    debug!("No 'content' field in delta");
+                }
+            } else if let Some(message) = choice.get("message") {
+                debug!("Found 'message' field (non-streaming format)");
+                if let Some(content) = message.get("content") {
+                    debug!("Found 'content' in message");
+                    if let Some(content_str) = content.as_str() {
+                        debug!("Content as string: {}", content_str);
+                        return Some(content_str.to_string());
+                    }
+                }
+            } else {
+                debug!("No 'delta' or 'message' field in choice");
+            }
+        } else {
+            debug!("No first choice in choices array");
+        }
+    } else {
+        debug!("No 'choices' field in JSON chunk");
     }
 
-    // Try non-streaming format
-    if let Some(content) = json_chunk
-        .get("choices")?
-        .get(0)?
-        .get("message")?
-        .get("content")?
-        .as_str()
-    {
-        return Some(content.to_string());
-    }
-
+    debug!("Failed to extract assistant content");
     None
 }
 

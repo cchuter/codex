@@ -313,10 +313,13 @@ pub(crate) async fn stream_chat_completions(
                 let stream = resp.bytes_stream().map_err(CodexErr::Reqwest);
 
                 // Create XML adapter if needed for models like glm-4.6
+                debug!("Model family slug: '{}'", model_family.slug);
+                debug!("Provider name: {}", provider.name);
                 let xml_adapter = if model_family.slug.contains("glm") {
-                    debug!("Creating XML adapter for model: {}", model_family.slug);
+                    debug!("✓ Creating XML adapter for GLM model: {}", model_family.slug);
                     Some(XmlResponseAdapter::new(model_family.slug.clone()))
                 } else {
+                    debug!("✗ No XML adapter needed for model: {}", model_family.slug);
                     None
                 };
 
@@ -470,23 +473,34 @@ async fn process_chat_sse<S>(
         }
 
         // Parse JSON chunk, optionally transforming XML if adapter is present
+        debug!("SSE data received: {}", &sse.data);
         let chunk: serde_json::Value = if let Some(ref adapter) = xml_adapter {
+            debug!("XML adapter is present, attempting transformation");
             // Try to transform XML tags if present
             if let Some(transformed) = adapter.transform_chunk(&sse.data) {
+                debug!("✓ XML transformation successful");
                 trace!("Transformed XML response to JSON: {transformed:?}");
                 transformed
             } else {
+                debug!("✗ XML transformation returned None, falling back to JSON parsing");
                 // Fallback to normal JSON parsing
                 match serde_json::from_str(&sse.data) {
                     Ok(v) => v,
-                    Err(_) => continue,
+                    Err(e) => {
+                        debug!("JSON parsing failed: {}", e);
+                        continue;
+                    }
                 }
             }
         } else {
+            debug!("No XML adapter, using normal JSON parsing");
             // Normal JSON parsing without transformation
             match serde_json::from_str(&sse.data) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(e) => {
+                    debug!("JSON parsing failed: {}", e);
+                    continue;
+                }
             }
         };
         trace!("chat_completions received SSE chunk: {chunk:?}");
