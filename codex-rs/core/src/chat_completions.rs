@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::ModelProviderInfo;
+use crate::buffered_xml_adapter::BufferedXmlAdapter;
 use crate::client_common::Prompt;
 use crate::client_common::ResponseEvent;
 use crate::client_common::ResponseStream;
@@ -11,7 +12,6 @@ use crate::error::UnexpectedResponseError;
 use crate::model_family::ModelFamily;
 use crate::openai_tools::create_tools_json_for_chat_completions_api;
 use crate::util::backoff;
-use crate::xml_response_adapter::XmlResponseAdapter;
 use bytes::Bytes;
 use codex_otel::otel_event_manager::OtelEventManager;
 use codex_protocol::models::ContentItem;
@@ -313,18 +313,9 @@ pub(crate) async fn stream_chat_completions(
                 let stream = resp.bytes_stream().map_err(CodexErr::Reqwest);
 
                 // Create XML adapter if needed for models like glm-4.6
-                eprintln!("🔍 XML ADAPTER CHECK:");
-                eprintln!("  Model family slug: '{}'", model_family.slug);
-                eprintln!("  Provider name: {}", provider.name);
-                eprintln!("  Contains 'glm': {}", model_family.slug.contains("glm"));
-                eprintln!("  Contains 'GLM': {}", model_family.slug.contains("GLM"));
-                eprintln!("  Lowercase check: {}", model_family.slug.to_lowercase().contains("glm"));
-
                 let xml_adapter = if model_family.slug.to_lowercase().contains("glm") {
-                    eprintln!("✅ CREATING XML ADAPTER for model: {}", model_family.slug);
-                    Some(XmlResponseAdapter::new(model_family.slug.clone()))
+                    Some(BufferedXmlAdapter::new())
                 } else {
-                    eprintln!("❌ NO XML ADAPTER for model: {}", model_family.slug);
                     None
                 };
 
@@ -385,7 +376,7 @@ async fn process_chat_sse<S>(
     tx_event: mpsc::Sender<Result<ResponseEvent>>,
     idle_timeout: Duration,
     otel_event_manager: OtelEventManager,
-    xml_adapter: Option<XmlResponseAdapter>,
+    mut xml_adapter: Option<BufferedXmlAdapter>,
 ) where
     S: Stream<Item = Result<Bytes>> + Unpin,
 {
@@ -421,6 +412,44 @@ async fn process_chat_sse<S>(
                 return;
             }
             Ok(None) => {
+                // Flush any remaining buffered XML content before closing
+                if let Some(ref mut adapter) = xml_adapter {
+                    if let Some(final_chunk) = adapter.flush() {
+                        // Process the final chunk like regular chunks
+                        // (we'd need to extract the processing logic here, but for now
+                        // just send it as a final response item if it contains content)
+                        if let Some(choices) = final_chunk.get("choices") {
+                            if let Some(choice) = choices.get(0) {
+                                if let Some(delta) = choice.get("delta") {
+                                    // Send any remaining content, reasoning, or tool calls
+                                    if let Some(content) =
+                                        delta.get("content").and_then(|c| c.as_str())
+                                    {
+                                        if !content.is_empty() {
+                                            let _ = tx_event
+                                                .send(Ok(ResponseEvent::OutputTextDelta(
+                                                    content.to_string(),
+                                                )))
+                                                .await;
+                                        }
+                                    }
+                                    if let Some(reasoning) = delta.get("reasoning") {
+                                        if let Some(text) =
+                                            reasoning.get("text").and_then(|t| t.as_str())
+                                        {
+                                            let _ = tx_event
+                                                .send(Ok(ResponseEvent::ReasoningContentDelta(
+                                                    text.to_string(),
+                                                )))
+                                                .await;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Stream closed gracefully – emit Completed with dummy id.
                 let _ = tx_event
                     .send(Ok(ResponseEvent::Completed {
@@ -478,33 +507,20 @@ async fn process_chat_sse<S>(
         }
 
         // Parse JSON chunk, optionally transforming XML if adapter is present
-        eprintln!("📦 SSE data received (first 200 chars): {}", &sse.data.chars().take(200).collect::<String>());
-
-        let chunk: serde_json::Value = if let Some(ref adapter) = xml_adapter {
-            eprintln!("🔧 XML adapter IS PRESENT - attempting transformation");
-            // Try to transform XML tags if present
-            if let Some(transformed) = adapter.transform_chunk(&sse.data) {
-                eprintln!("✅ XML TRANSFORMATION SUCCESSFUL!");
-                eprintln!("  Transformed data: {}", serde_json::to_string(&transformed).unwrap_or_default());
+        let chunk: serde_json::Value = if let Some(ref mut adapter) = xml_adapter {
+            // Try to process and buffer XML tags
+            if let Some(transformed) = adapter.process_chunk(&sse.data) {
                 transformed
             } else {
-                eprintln!("⚠️ XML transformation returned None, falling back to JSON parsing");
-                // Fallback to normal JSON parsing
-                match serde_json::from_str(&sse.data) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("❌ JSON parsing failed: {}", e);
-                        continue;
-                    }
-                }
+                // No complete XML blocks yet, skip this chunk
+                continue;
             }
         } else {
-            eprintln!("⚠️ NO XML ADAPTER - using normal JSON parsing");
             // Normal JSON parsing without transformation
             match serde_json::from_str(&sse.data) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!("❌ JSON parsing failed: {}", e);
+                    trace!("Failed to parse chunk as JSON: {}", e);
                     continue;
                 }
             }

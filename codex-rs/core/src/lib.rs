@@ -8,6 +8,7 @@
 mod apply_patch;
 pub mod auth;
 pub mod bash;
+mod buffered_xml_adapter;
 mod chat_completions;
 mod client;
 mod client_common;

@@ -3,7 +3,6 @@
 
 use regex_lite::Regex;
 use serde_json::{Value, json};
-use tracing::debug;
 
 /// Transforms XML-style model responses into OpenAI-compatible JSON format
 pub struct XmlResponseAdapter {
@@ -19,51 +18,25 @@ impl XmlResponseAdapter {
 
     /// Transform XML-formatted response chunk into OpenAI JSON format
     pub fn transform_chunk(&self, raw_data: &str) -> Option<Value> {
-        eprintln!("🔍 XML ADAPTER transform_chunk CALLED!");
-        eprintln!("  Raw data length: {}", raw_data.len());
-        eprintln!("  Raw data (first 300 chars): {}", raw_data.chars().take(300).collect::<String>());
-
         // First check if this already looks like JSON
         if raw_data.trim().starts_with('{') {
-            eprintln!("📋 Data starts with '{{' - attempting JSON parse");
             // If it's already JSON, check if it needs transformation
             if let Ok(json_chunk) = serde_json::from_str::<Value>(raw_data) {
-                eprintln!("✅ Successfully parsed as JSON");
                 // Check if there's text content that might contain XML
                 if let Some(content) = extract_assistant_content(&json_chunk) {
-                    eprintln!("📝 Extracted assistant content (first 200 chars): {}", content.chars().take(200).collect::<String>());
                     if contains_xml_tags(&content) {
-                        eprintln!("🎯 XML TAGS DETECTED IN CONTENT!");
-                        eprintln!("  Content with XML: {}", content);
-                        let result = self.transform_xml_in_json(json_chunk, &content);
-                        if let Some(ref transformed) = result {
-                            eprintln!("✨ TRANSFORMATION COMPLETE!");
-                            eprintln!("  Result: {}", serde_json::to_string(transformed).unwrap_or_default());
-                        }
-                        return result;
-                    } else {
-                        eprintln!("❌ NO XML tags found in content");
-                        eprintln!("  Content was: {}", content);
+                        return self.transform_xml_in_json(json_chunk, &content);
                     }
-                } else {
-                    eprintln!("❌ No assistant content found in JSON chunk");
-                    eprintln!("  JSON structure: {}", serde_json::to_string(&json_chunk).unwrap_or_default());
                 }
                 return Some(json_chunk);
-            } else {
-                eprintln!("❌ Failed to parse as JSON");
             }
-        } else {
-            eprintln!("📋 Data does NOT start with '{{' - checking for pure XML");
         }
 
         // If it's pure XML or mixed content, parse it
         if contains_xml_tags(raw_data) {
-            eprintln!("🎯 Pure XML detected - transforming!");
             return self.parse_xml_response(raw_data);
         }
 
-        eprintln!("⚠️ No JSON or XML detected - returning None");
         None
     }
 
@@ -127,7 +100,6 @@ impl XmlResponseAdapter {
 
     /// Parse XML content and extract structured data
     fn parse_xml_content(&self, content: &str) -> Option<Value> {
-        debug!("Parsing XML content: {}", content);
         let mut delta = json!({});
         let mut has_content = false;
         let mut tool_calls = Vec::new();
@@ -142,18 +114,14 @@ impl XmlResponseAdapter {
             let inner_text = cap.get(1).map(|m| m.as_str().trim()).unwrap_or("");
             if !inner_text.is_empty() {
                 reasoning_text = inner_text.to_string();
-                debug!("Found reasoning text inside think tags: {}", reasoning_text);
             } else {
                 // Think tags are empty, check for text immediately after </think>
                 let after_think_re = Regex::new(r"</think>\s*\n?([^\n<]+)").ok()?;
                 if let Some(after_cap) = after_think_re.captures(content)
-                    && let Some(text_after) = after_cap.get(1) {
-                        reasoning_text = text_after.as_str().trim().to_string();
-                        debug!(
-                            "Found reasoning text after empty think tags: {}",
-                            reasoning_text
-                        );
-                    }
+                    && let Some(text_after) = after_cap.get(1)
+                {
+                    reasoning_text = text_after.as_str().trim().to_string();
+                }
             }
 
             if !reasoning_text.is_empty() {
@@ -170,7 +138,6 @@ impl XmlResponseAdapter {
             if let Some(tool_content) = cap.get(1)
                 && let Some(tool_call) = self.parse_tool_call(tool_content.as_str())
             {
-                debug!("Found tool call: {:?}", tool_call);
                 tool_calls.push(tool_call);
                 has_content = true;
             }
@@ -178,7 +145,6 @@ impl XmlResponseAdapter {
 
         // If we found tool calls, add them to delta
         if !tool_calls.is_empty() {
-            debug!("Adding {} tool calls to delta", tool_calls.len());
             delta["tool_calls"] = json!(tool_calls);
             has_content = true;
         }
@@ -190,7 +156,9 @@ impl XmlResponseAdapter {
         // Remove think tags and any reasoning text we captured
         // First remove non-empty think tags and their content
         let think_with_content_re = Regex::new(r"<think>[\s\S]*?</think>").ok()?;
-        plain_text = think_with_content_re.replace_all(&plain_text, "").to_string();
+        plain_text = think_with_content_re
+            .replace_all(&plain_text, "")
+            .to_string();
 
         // Then clean up any text that immediately followed empty think tags (already in reasoning)
         if !reasoning_text.is_empty() {
@@ -284,46 +252,25 @@ fn contains_xml_tags(content: &str) -> bool {
 
 /// Extract assistant content from a JSON chunk
 fn extract_assistant_content(json_chunk: &Value) -> Option<String> {
-    debug!("Extracting assistant content from JSON chunk");
-
     // Try streaming format
     if let Some(choices) = json_chunk.get("choices") {
-        debug!("Found 'choices' field");
         if let Some(choice) = choices.get(0) {
-            debug!("Found first choice");
             if let Some(delta) = choice.get("delta") {
-                debug!("Found 'delta' field (streaming format)");
                 if let Some(content) = delta.get("content") {
-                    debug!("Found 'content' in delta");
                     if let Some(content_str) = content.as_str() {
-                        debug!("Content as string: {}", content_str);
                         return Some(content_str.to_string());
-                    } else {
-                        debug!("Content is not a string");
                     }
-                } else {
-                    debug!("No 'content' field in delta");
                 }
             } else if let Some(message) = choice.get("message") {
-                debug!("Found 'message' field (non-streaming format)");
                 if let Some(content) = message.get("content") {
-                    debug!("Found 'content' in message");
                     if let Some(content_str) = content.as_str() {
-                        debug!("Content as string: {}", content_str);
                         return Some(content_str.to_string());
                     }
                 }
-            } else {
-                debug!("No 'delta' or 'message' field in choice");
             }
-        } else {
-            debug!("No first choice in choices array");
         }
-    } else {
-        debug!("No 'choices' field in JSON chunk");
     }
 
-    debug!("Failed to extract assistant content");
     None
 }
 
