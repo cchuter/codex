@@ -4,7 +4,8 @@
 //! It buffers partial content and only transforms when complete XML structures are detected.
 
 use regex_lite::Regex;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use std::collections::VecDeque;
 
 /// Buffered XML adapter that handles fragmented streaming
