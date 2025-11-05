@@ -435,9 +435,7 @@ async fn process_chat_sse<S>(
                             && let Some(text) = reasoning.get("text").and_then(|t| t.as_str())
                         {
                             let _ = tx_event
-                                .send(Ok(ResponseEvent::ReasoningContentDelta(
-                                    text.to_string(),
-                                )))
+                                .send(Ok(ResponseEvent::ReasoningContentDelta(text.to_string())))
                                 .await;
                         }
                     }
