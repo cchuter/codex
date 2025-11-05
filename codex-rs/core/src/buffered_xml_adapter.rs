@@ -46,30 +46,48 @@ impl BufferedXmlAdapter {
     pub fn process_chunk(&mut self, raw_data: &str) -> Option<Value> {
         // First check if this is already JSON
         if raw_data.trim().starts_with('{')
-            && let Ok(json_chunk) = serde_json::from_str::<Value>(raw_data)
+            && let Ok(mut json_chunk) = serde_json::from_str::<Value>(raw_data)
         {
             // Check if there's content field with XML
             if let Some(content) = extract_content_from_json(&json_chunk) {
                 // Check if content contains XML tags
                 if content.contains("<think>")
+                    || content.contains("</think>")
                     || content.contains("<tool_call>")
+                    || content.contains("</tool_call>")
                     || content.contains("<arg_key>")
+                    || content.contains("<arg_value>")
+                    || content.contains("</arg_key>")
+                    || content.contains("</arg_value>")
                     || content.contains("<function_call>")
                 {
-                    // Add content to our buffer
-                    self.buffer.push_str(&content);
+                    // Process the content to separate XML from plain text
+                    let processed = self.process_mixed_content(&content);
 
-                    // Check for complete XML structures
-                    self.extract_complete_blocks();
+                    // Build the response with processed content
+                    if let Some(choices) = json_chunk
+                        .get_mut("choices")
+                        .and_then(|c| c.as_array_mut())
+                        .and_then(|arr| arr.get_mut(0))
+                    {
+                        if let Some(delta) = choices.get_mut("delta") {
+                            // Replace the content with our processed version
+                            if let Some(delta_obj) = delta.as_object_mut() {
+                                // Clear original content with XML
+                                delta_obj.clear();
 
-                    // If we have complete blocks, transform them
-                    if !self.complete_blocks.is_empty() {
-                        return self.transform_complete_blocks(json_chunk);
+                                // Add processed fields
+                                if let Some(obj) = processed.as_object() {
+                                    for (key, value) in obj {
+                                        delta_obj.insert(key.clone(), value.clone());
+                                    }
+                                }
+                            }
+                        }
                     }
 
-                    // Important: Don't return the chunk with XML tags still in it!
-                    // Return None to skip this chunk until we have complete blocks
-                    return None;
+                    // Return the cleaned chunk
+                    return Some(json_chunk);
                 }
             }
             // Return the JSON as-is if no XML transformation needed
@@ -337,6 +355,76 @@ impl BufferedXmlAdapter {
         } else {
             None
         }
+    }
+
+    /// Process mixed content containing both XML and plain text
+    fn process_mixed_content(&mut self, content: &str) -> Value {
+        let mut delta = json!({});
+
+        // Store the original content to extract plain text from it later
+        let original_content = content.to_string();
+
+        // Add content to buffer for XML processing
+        self.buffer.push_str(content);
+
+        // Extract complete XML blocks (this removes them from the buffer)
+        self.extract_complete_blocks();
+
+        // Process any complete blocks
+        let mut extracted_blocks = Vec::new();
+        if !self.complete_blocks.is_empty() {
+            let mut tool_calls = Vec::new();
+
+            while let Some(block) = self.complete_blocks.pop_front() {
+                extracted_blocks.push(block.clone());
+
+                if block.contains("<think>") {
+                    if let Some(reasoning) = self.extract_reasoning(&block) {
+                        delta["reasoning"] = json!({ "text": reasoning });
+                    }
+                } else if block.contains("<tool_call>") {
+                    if let Some(tool_call) = self.extract_tool_call(&block) {
+                        tool_calls.push(tool_call);
+                    }
+                }
+            }
+
+            if !tool_calls.is_empty() {
+                delta["tool_calls"] = json!(tool_calls);
+            }
+        }
+
+        // Extract plain text by removing the extracted blocks from original content
+        let mut cleaned_content = original_content.clone();
+
+        // Remove all the blocks we extracted
+        for block in &extracted_blocks {
+            cleaned_content = cleaned_content.replace(block, "");
+        }
+
+        // Also remove any partial/incomplete XML tags
+        let partial_tags = vec![
+            r"</?think>",
+            r"</?tool_call>",
+            r"</?arg_key>",
+            r"</?arg_value>",
+            r"</?function_call>",
+        ];
+
+        for tag_pattern in partial_tags {
+            if let Ok(re) = Regex::new(tag_pattern) {
+                cleaned_content = re.replace_all(&cleaned_content, "").to_string();
+            }
+        }
+
+        // Clean up whitespace
+        let cleaned_content = cleaned_content.trim();
+
+        if !cleaned_content.is_empty() {
+            delta["content"] = json!(cleaned_content);
+        }
+
+        delta
     }
 
     /// Extract plain text from buffer (non-XML content)
