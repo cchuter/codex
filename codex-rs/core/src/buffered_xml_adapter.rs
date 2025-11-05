@@ -50,8 +50,9 @@ impl BufferedXmlAdapter {
         {
             // Check if there's content field with XML
             if let Some(content) = extract_content_from_json(&json_chunk) {
-                // Check if content contains XML tags
-                if content.contains("<think>")
+                // Check if content contains XML tags or we have buffered content
+                if !self.buffer.is_empty()
+                    || content.contains("<think>")
                     || content.contains("</think>")
                     || content.contains("<tool_call>")
                     || content.contains("</tool_call>")
@@ -61,33 +62,43 @@ impl BufferedXmlAdapter {
                     || content.contains("</arg_value>")
                     || content.contains("<function_call>")
                 {
-                    // Process the content to separate XML from plain text
-                    let processed = self.process_mixed_content(&content);
+                    // Add content to buffer for accumulation
+                    self.buffer.push_str(&content);
 
-                    // Build the response with processed content
-                    if let Some(choices) = json_chunk
-                        .get_mut("choices")
-                        .and_then(|c| c.as_array_mut())
-                        .and_then(|arr| arr.get_mut(0))
-                    {
-                        if let Some(delta) = choices.get_mut("delta") {
-                            // Replace the content with our processed version
-                            if let Some(delta_obj) = delta.as_object_mut() {
-                                // Clear original content with XML
-                                delta_obj.clear();
+                    // Try to extract complete blocks
+                    self.extract_complete_blocks();
 
-                                // Add processed fields
-                                if let Some(obj) = processed.as_object() {
-                                    for (key, value) in obj {
-                                        delta_obj.insert(key.clone(), value.clone());
+                    // Process what we have
+                    let processed = self.create_delta_from_buffer();
+
+                    // Only return a chunk if we have something meaningful to send
+                    if let Some(obj) = processed.as_object() {
+                        if !obj.is_empty() {
+                            // Build the response with processed content
+                            if let Some(choices) = json_chunk
+                                .get_mut("choices")
+                                .and_then(|c| c.as_array_mut())
+                                .and_then(|arr| arr.get_mut(0))
+                            {
+                                if let Some(delta) = choices.get_mut("delta") {
+                                    // Replace the content with our processed version
+                                    if let Some(delta_obj) = delta.as_object_mut() {
+                                        // Clear original content with XML
+                                        delta_obj.clear();
+
+                                        // Add processed fields
+                                        for (key, value) in obj {
+                                            delta_obj.insert(key.clone(), value.clone());
+                                        }
                                     }
                                 }
                             }
+                            return Some(json_chunk);
                         }
                     }
 
-                    // Return the cleaned chunk
-                    return Some(json_chunk);
+                    // If we're buffering incomplete XML, don't return anything yet
+                    return None;
                 }
             }
             // Return the JSON as-is if no XML transformation needed
@@ -228,41 +239,10 @@ impl BufferedXmlAdapter {
 
     /// Create a response from complete blocks (for non-JSON input)
     fn create_response_from_blocks(&mut self) -> Option<Value> {
-        let mut delta = json!({});
-        let mut has_content = false;
+        let delta = self.create_delta_from_buffer();
 
-        // Process all complete blocks
-        while let Some(block) = self.complete_blocks.pop_front() {
-            if block.contains("<think>") {
-                if let Some(reasoning) = self.extract_reasoning(&block) {
-                    delta["reasoning"] = json!({ "text": reasoning });
-                    has_content = true;
-                }
-            } else if block.contains("<tool_call>") {
-                if let Some(tool_call) = self.extract_tool_call(&block) {
-                    let tool_calls = delta
-                        .get_mut("tool_calls")
-                        .and_then(|v| v.as_array_mut())
-                        .map(|a| {
-                            a.push(tool_call.clone());
-                            a.clone()
-                        })
-                        .unwrap_or_else(|| vec![tool_call]);
-
-                    delta["tool_calls"] = json!(tool_calls);
-                    has_content = true;
-                }
-            }
-        }
-
-        // Check for plain text
-        let plain_text = self.extract_plain_text();
-        if !plain_text.is_empty() {
-            delta["content"] = json!(plain_text);
-            has_content = true;
-        }
-
-        if !has_content {
+        // Only return a response if we have something to send
+        if delta.as_object()?.is_empty() {
             return None;
         }
 
@@ -355,6 +335,38 @@ impl BufferedXmlAdapter {
         } else {
             None
         }
+    }
+
+    /// Create delta from current buffer and complete blocks state
+    fn create_delta_from_buffer(&mut self) -> Value {
+        let mut delta = json!({});
+
+        // Process complete blocks
+        if !self.complete_blocks.is_empty() {
+            let mut tool_calls = Vec::new();
+
+            while let Some(block) = self.complete_blocks.pop_front() {
+                if block.contains("<think>") {
+                    if let Some(reasoning) = self.extract_reasoning(&block) {
+                        delta["reasoning"] = json!({ "text": reasoning });
+                    }
+                } else if block.contains("<tool_call>") {
+                    if let Some(tool_call) = self.extract_tool_call(&block) {
+                        tool_calls.push(tool_call);
+                    }
+                }
+            }
+
+            if !tool_calls.is_empty() {
+                delta["tool_calls"] = json!(tool_calls);
+            }
+        }
+
+        // Don't output any partial/incomplete XML content from the buffer
+        // The buffer is only for accumulating incomplete XML blocks
+        // We should only output content when we have complete blocks
+
+        delta
     }
 
     /// Process mixed content containing both XML and plain text
