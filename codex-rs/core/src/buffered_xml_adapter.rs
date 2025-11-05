@@ -459,10 +459,10 @@ mod tests {
 
         // Process chunks
         let result1 = adapter.process_chunk(&chunk1.to_string());
-        assert!(result1.is_some()); // Returns the chunk as-is since no complete blocks yet
+        assert!(result1.is_none()); // Should return None while buffering incomplete XML
 
         let result2 = adapter.process_chunk(&chunk2.to_string());
-        assert!(result2.is_some()); // Still accumulating
+        assert!(result2.is_none()); // Still buffering incomplete content
 
         let result3 = adapter.process_chunk(&chunk3.to_string());
         assert!(result3.is_some()); // Should now have complete block
