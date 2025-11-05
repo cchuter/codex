@@ -8,12 +8,14 @@
 mod apply_patch;
 pub mod auth;
 pub mod bash;
+mod buffered_xml_adapter;
 mod chat_completions;
 mod client;
 mod client_common;
 pub mod codex;
 mod codex_conversation;
 pub mod token_data;
+mod xml_response_adapter;
 pub use codex_conversation::CodexConversation;
 mod command_safety;
 pub mod config;

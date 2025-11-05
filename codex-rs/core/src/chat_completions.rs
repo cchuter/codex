@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::ModelProviderInfo;
+use crate::buffered_xml_adapter::BufferedXmlAdapter;
 use crate::client_common::Prompt;
 use crate::client_common::ResponseEvent;
 use crate::client_common::ResponseStream;
@@ -310,11 +311,20 @@ pub(crate) async fn stream_chat_completions(
             Ok(resp) if resp.status().is_success() => {
                 let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent>>(1600);
                 let stream = resp.bytes_stream().map_err(CodexErr::Reqwest);
+
+                // Create XML adapter if needed for models like glm-4.6
+                let xml_adapter = if model_family.slug.to_lowercase().contains("glm") {
+                    Some(BufferedXmlAdapter::new())
+                } else {
+                    None
+                };
+
                 tokio::spawn(process_chat_sse(
                     stream,
                     tx_event,
                     provider.stream_idle_timeout(),
                     otel_event_manager.clone(),
+                    xml_adapter,
                 ));
                 return Ok(ResponseStream { rx_event });
             }
@@ -366,6 +376,7 @@ async fn process_chat_sse<S>(
     tx_event: mpsc::Sender<Result<ResponseEvent>>,
     idle_timeout: Duration,
     otel_event_manager: OtelEventManager,
+    mut xml_adapter: Option<BufferedXmlAdapter>,
 ) where
     S: Stream<Item = Result<Bytes>> + Unpin,
 {
@@ -401,6 +412,35 @@ async fn process_chat_sse<S>(
                 return;
             }
             Ok(None) => {
+                // Flush any remaining buffered XML content before closing
+                if let Some(ref mut adapter) = xml_adapter
+                    && let Some(final_chunk) = adapter.flush()
+                {
+                    // Process the final chunk like regular chunks
+                    // (we'd need to extract the processing logic here, but for now
+                    // just send it as a final response item if it contains content)
+                    if let Some(choices) = final_chunk.get("choices")
+                        && let Some(choice) = choices.get(0)
+                        && let Some(delta) = choice.get("delta")
+                    {
+                        // Send any remaining content, reasoning, or tool calls
+                        if let Some(content) = delta.get("content").and_then(|c| c.as_str())
+                            && !content.is_empty()
+                        {
+                            let _ = tx_event
+                                .send(Ok(ResponseEvent::OutputTextDelta(content.to_string())))
+                                .await;
+                        }
+                        if let Some(reasoning) = delta.get("reasoning")
+                            && let Some(text) = reasoning.get("text").and_then(|t| t.as_str())
+                        {
+                            let _ = tx_event
+                                .send(Ok(ResponseEvent::ReasoningContentDelta(text.to_string())))
+                                .await;
+                        }
+                    }
+                }
+
                 // Stream closed gracefully – emit Completed with dummy id.
                 let _ = tx_event
                     .send(Ok(ResponseEvent::Completed {
@@ -457,10 +497,24 @@ async fn process_chat_sse<S>(
             return;
         }
 
-        // Parse JSON chunk
-        let chunk: serde_json::Value = match serde_json::from_str(&sse.data) {
-            Ok(v) => v,
-            Err(_) => continue,
+        // Parse JSON chunk, optionally transforming XML if adapter is present
+        let chunk: serde_json::Value = if let Some(ref mut adapter) = xml_adapter {
+            // Try to process and buffer XML tags
+            if let Some(transformed) = adapter.process_chunk(&sse.data) {
+                transformed
+            } else {
+                // No complete XML blocks yet, skip this chunk
+                continue;
+            }
+        } else {
+            // Normal JSON parsing without transformation
+            match serde_json::from_str(&sse.data) {
+                Ok(v) => v,
+                Err(e) => {
+                    trace!("Failed to parse chunk as JSON: {}", e);
+                    continue;
+                }
+            }
         };
         trace!("chat_completions received SSE chunk: {chunk:?}");
 
