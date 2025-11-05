@@ -413,39 +413,32 @@ async fn process_chat_sse<S>(
             }
             Ok(None) => {
                 // Flush any remaining buffered XML content before closing
-                if let Some(ref mut adapter) = xml_adapter {
-                    if let Some(final_chunk) = adapter.flush() {
-                        // Process the final chunk like regular chunks
-                        // (we'd need to extract the processing logic here, but for now
-                        // just send it as a final response item if it contains content)
-                        if let Some(choices) = final_chunk.get("choices") {
-                            if let Some(choice) = choices.get(0) {
-                                if let Some(delta) = choice.get("delta") {
-                                    // Send any remaining content, reasoning, or tool calls
-                                    if let Some(content) =
-                                        delta.get("content").and_then(|c| c.as_str())
-                                    {
-                                        if !content.is_empty() {
-                                            let _ = tx_event
-                                                .send(Ok(ResponseEvent::OutputTextDelta(
-                                                    content.to_string(),
-                                                )))
-                                                .await;
-                                        }
-                                    }
-                                    if let Some(reasoning) = delta.get("reasoning") {
-                                        if let Some(text) =
-                                            reasoning.get("text").and_then(|t| t.as_str())
-                                        {
-                                            let _ = tx_event
-                                                .send(Ok(ResponseEvent::ReasoningContentDelta(
-                                                    text.to_string(),
-                                                )))
-                                                .await;
-                                        }
-                                    }
-                                }
-                            }
+                if let Some(ref mut adapter) = xml_adapter
+                    && let Some(final_chunk) = adapter.flush()
+                {
+                    // Process the final chunk like regular chunks
+                    // (we'd need to extract the processing logic here, but for now
+                    // just send it as a final response item if it contains content)
+                    if let Some(choices) = final_chunk.get("choices")
+                        && let Some(choice) = choices.get(0)
+                        && let Some(delta) = choice.get("delta")
+                    {
+                        // Send any remaining content, reasoning, or tool calls
+                        if let Some(content) = delta.get("content").and_then(|c| c.as_str())
+                            && !content.is_empty()
+                        {
+                            let _ = tx_event
+                                .send(Ok(ResponseEvent::OutputTextDelta(content.to_string())))
+                                .await;
+                        }
+                        if let Some(reasoning) = delta.get("reasoning")
+                            && let Some(text) = reasoning.get("text").and_then(|t| t.as_str())
+                        {
+                            let _ = tx_event
+                                .send(Ok(ResponseEvent::ReasoningContentDelta(
+                                    text.to_string(),
+                                )))
+                                .await;
                         }
                     }
                 }
