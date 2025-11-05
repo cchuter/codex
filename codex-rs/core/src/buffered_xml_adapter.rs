@@ -7,38 +7,22 @@ use regex_lite::Regex;
 use serde_json::{Value, json};
 use std::collections::VecDeque;
 
-/// State machine for tracking XML parsing state
-#[derive(Debug, Clone, PartialEq)]
-enum XmlParseState {
-    /// Looking for opening tags
-    Searching,
-    /// Inside a think tag
-    InThinkTag { depth: usize },
-    /// Inside a tool_call tag
-    InToolCallTag { depth: usize },
-    /// Accumulated complete blocks ready to process
-    Complete,
-}
-
 /// Buffered XML adapter that handles fragmented streaming
 pub struct BufferedXmlAdapter {
     /// Buffer for accumulating partial XML content
     buffer: String,
-    /// Current parsing state
-    state: XmlParseState,
     /// Queue of complete XML blocks ready to be processed
     complete_blocks: VecDeque<String>,
-    /// Track if we're between chunks that might be XML
-    partial_tag_buffer: String,
+    /// Track if we've already sent tool_calls to prevent duplicate finish_reason
+    sent_tool_calls: bool,
 }
 
 impl BufferedXmlAdapter {
     pub fn new() -> Self {
         Self {
             buffer: String::new(),
-            state: XmlParseState::Searching,
-            partial_tag_buffer: String::new(),
             complete_blocks: VecDeque::new(),
+            sent_tool_calls: false,
         }
     }
 
@@ -48,6 +32,68 @@ impl BufferedXmlAdapter {
         if raw_data.trim().starts_with('{')
             && let Ok(mut json_chunk) = serde_json::from_str::<Value>(raw_data)
         {
+            // Check for finish_reason to detect end of stream
+            if let Some(finish_reason_val) = json_chunk
+                .get("choices")
+                .and_then(|c| c.get(0))
+                .and_then(|choice| choice.get("finish_reason"))
+            {
+                // Check if it's not null (could be a string or null)
+                if !finish_reason_val.is_null() {
+                    // If finish_reason is "stop" and we've already sent tool_calls, suppress this chunk
+                    if finish_reason_val.as_str() == Some("stop") && self.sent_tool_calls {
+                        return None;
+                    }
+
+                    // If we have an incomplete tool_call in buffer when stream ends,
+                    // treat it as complete (glm-4.6 doesn't send closing tags)
+                    if !self.buffer.is_empty() && self.buffer.contains("<tool_call>") {
+                        // Add a closing tag to make it complete
+                        self.buffer.push_str("</tool_call>");
+
+                        // Extract the now-complete block
+                        self.extract_complete_blocks();
+
+                        // Process any complete blocks
+                        if !self.complete_blocks.is_empty() {
+                            let processed = self.create_delta_from_buffer();
+
+                            if let Some(obj) = processed.as_object()
+                                && !obj.is_empty()
+                            {
+                                if let Some(choices) = json_chunk
+                                    .get_mut("choices")
+                                    .and_then(|c| c.as_array_mut())
+                                    .and_then(|arr| arr.get_mut(0))
+                                    && let Some(delta_obj) =
+                                        choices.get_mut("delta").and_then(|d| d.as_object_mut())
+                                {
+                                    delta_obj.clear();
+                                    for (key, value) in obj {
+                                        delta_obj.insert(key.clone(), value.clone());
+                                    }
+
+                                    // Set finish_reason to tool_calls if we have them
+                                    if delta_obj.contains_key("tool_calls")
+                                        && let Some(choice) = json_chunk
+                                            .get_mut("choices")
+                                            .and_then(|c| c.as_array_mut())
+                                            .and_then(|arr| arr.get_mut(0))
+                                            .and_then(|c| c.as_object_mut())
+                                    {
+                                        choice.insert(
+                                            "finish_reason".to_string(),
+                                            json!("tool_calls"),
+                                        );
+                                    }
+                                }
+                                return Some(json_chunk);
+                            }
+                        }
+                    }
+                }
+            }
+
             // Check if there's content field with XML
             if let Some(content) = extract_content_from_json(&json_chunk) {
                 // Check if content contains XML tags or we have buffered content
@@ -72,29 +118,38 @@ impl BufferedXmlAdapter {
                     let processed = self.create_delta_from_buffer();
 
                     // Only return a chunk if we have something meaningful to send
-                    if let Some(obj) = processed.as_object() {
-                        if !obj.is_empty() {
-                            // Build the response with processed content
-                            if let Some(choices) = json_chunk
-                                .get_mut("choices")
-                                .and_then(|c| c.as_array_mut())
-                                .and_then(|arr| arr.get_mut(0))
-                            {
-                                if let Some(delta) = choices.get_mut("delta") {
-                                    // Replace the content with our processed version
-                                    if let Some(delta_obj) = delta.as_object_mut() {
-                                        // Clear original content with XML
-                                        delta_obj.clear();
+                    if let Some(obj) = processed.as_object()
+                        && !obj.is_empty()
+                    {
+                        // Build the response with processed content
+                        if let Some(choices) = json_chunk
+                            .get_mut("choices")
+                            .and_then(|c| c.as_array_mut())
+                            .and_then(|arr| arr.get_mut(0))
+                            && let Some(delta_obj) =
+                                choices.get_mut("delta").and_then(|d| d.as_object_mut())
+                        {
+                            // Clear original content with XML
+                            delta_obj.clear();
 
-                                        // Add processed fields
-                                        for (key, value) in obj {
-                                            delta_obj.insert(key.clone(), value.clone());
-                                        }
-                                    }
-                                }
+                            // Add processed fields
+                            for (key, value) in obj {
+                                delta_obj.insert(key.clone(), value.clone());
                             }
-                            return Some(json_chunk);
+
+                            // Set finish_reason to "tool_calls" when we have tool_calls
+                            if delta_obj.contains_key("tool_calls")
+                                && let Some(choice) = json_chunk
+                                    .get_mut("choices")
+                                    .and_then(|c| c.as_array_mut())
+                                    .and_then(|arr| arr.get_mut(0))
+                                    .and_then(|c| c.as_object_mut())
+                            {
+                                choice.insert("finish_reason".to_string(), json!("tool_calls"));
+                                self.sent_tool_calls = true;
+                            }
                         }
+                        return Some(json_chunk);
                     }
 
                     // If we're buffering incomplete XML, don't return anything yet
@@ -178,63 +233,6 @@ impl BufferedXmlAdapter {
         }
 
         None
-    }
-
-    /// Transform accumulated complete blocks
-    fn transform_complete_blocks(&mut self, mut json_chunk: Value) -> Option<Value> {
-        let mut delta = json!({});
-        let mut has_content = false;
-
-        // Process all complete blocks
-        while let Some(block) = self.complete_blocks.pop_front() {
-            if block.contains("<think>") {
-                // Extract reasoning content
-                if let Some(reasoning) = self.extract_reasoning(&block) {
-                    delta["reasoning"] = json!({ "text": reasoning });
-                    has_content = true;
-                }
-            } else if block.contains("<tool_call>") {
-                // Extract tool call
-                if let Some(tool_call) = self.extract_tool_call(&block) {
-                    let tool_calls = delta
-                        .get_mut("tool_calls")
-                        .and_then(|v| v.as_array_mut())
-                        .map(|a| {
-                            a.push(tool_call.clone());
-                            a.clone()
-                        })
-                        .unwrap_or_else(|| vec![tool_call]);
-
-                    delta["tool_calls"] = json!(tool_calls);
-                    has_content = true;
-                }
-            }
-        }
-
-        // Check for any plain text in buffer (non-XML content)
-        let plain_text = self.extract_plain_text();
-        if !plain_text.is_empty() {
-            delta["content"] = json!(plain_text);
-            has_content = true;
-        }
-
-        if !has_content {
-            // Don't return empty chunks
-            return None;
-        }
-
-        // Create a clean JSON response with the transformed content
-        // Replace the entire delta to avoid duplicating XML content
-        if let Some(choices) = json_chunk
-            .get_mut("choices")
-            .and_then(|c| c.as_array_mut())
-            .and_then(|arr| arr.get_mut(0))
-        {
-            // Replace the entire delta with our cleaned version
-            choices["delta"] = delta;
-        }
-
-        Some(json_chunk)
     }
 
     /// Create a response from complete blocks (for non-JSON input)
@@ -346,14 +344,14 @@ impl BufferedXmlAdapter {
             let mut tool_calls = Vec::new();
 
             while let Some(block) = self.complete_blocks.pop_front() {
-                if block.contains("<think>") {
-                    if let Some(reasoning) = self.extract_reasoning(&block) {
-                        delta["reasoning"] = json!({ "text": reasoning });
-                    }
-                } else if block.contains("<tool_call>") {
-                    if let Some(tool_call) = self.extract_tool_call(&block) {
-                        tool_calls.push(tool_call);
-                    }
+                if block.contains("<think>")
+                    && let Some(reasoning) = self.extract_reasoning(&block)
+                {
+                    delta["reasoning"] = json!({ "text": reasoning });
+                } else if block.contains("<tool_call>")
+                    && let Some(tool_call) = self.extract_tool_call(&block)
+                {
+                    tool_calls.push(tool_call);
                 }
             }
 
@@ -367,90 +365,6 @@ impl BufferedXmlAdapter {
         // We should only output content when we have complete blocks
 
         delta
-    }
-
-    /// Process mixed content containing both XML and plain text
-    fn process_mixed_content(&mut self, content: &str) -> Value {
-        let mut delta = json!({});
-
-        // Store the original content to extract plain text from it later
-        let original_content = content.to_string();
-
-        // Add content to buffer for XML processing
-        self.buffer.push_str(content);
-
-        // Extract complete XML blocks (this removes them from the buffer)
-        self.extract_complete_blocks();
-
-        // Process any complete blocks
-        let mut extracted_blocks = Vec::new();
-        if !self.complete_blocks.is_empty() {
-            let mut tool_calls = Vec::new();
-
-            while let Some(block) = self.complete_blocks.pop_front() {
-                extracted_blocks.push(block.clone());
-
-                if block.contains("<think>") {
-                    if let Some(reasoning) = self.extract_reasoning(&block) {
-                        delta["reasoning"] = json!({ "text": reasoning });
-                    }
-                } else if block.contains("<tool_call>") {
-                    if let Some(tool_call) = self.extract_tool_call(&block) {
-                        tool_calls.push(tool_call);
-                    }
-                }
-            }
-
-            if !tool_calls.is_empty() {
-                delta["tool_calls"] = json!(tool_calls);
-            }
-        }
-
-        // Extract plain text by removing the extracted blocks from original content
-        let mut cleaned_content = original_content.clone();
-
-        // Remove all the blocks we extracted
-        for block in &extracted_blocks {
-            cleaned_content = cleaned_content.replace(block, "");
-        }
-
-        // Also remove any partial/incomplete XML tags
-        let partial_tags = vec![
-            r"</?think>",
-            r"</?tool_call>",
-            r"</?arg_key>",
-            r"</?arg_value>",
-            r"</?function_call>",
-        ];
-
-        for tag_pattern in partial_tags {
-            if let Ok(re) = Regex::new(tag_pattern) {
-                cleaned_content = re.replace_all(&cleaned_content, "").to_string();
-            }
-        }
-
-        // Clean up whitespace
-        let cleaned_content = cleaned_content.trim();
-
-        if !cleaned_content.is_empty() {
-            delta["content"] = json!(cleaned_content);
-        }
-
-        delta
-    }
-
-    /// Extract plain text from buffer (non-XML content)
-    fn extract_plain_text(&mut self) -> String {
-        // Remove all XML tags to get plain text
-        let tag_re = Regex::new(r"<[^>]+>").unwrap();
-        let plain = tag_re.replace_all(&self.buffer, "").trim().to_string();
-
-        if !plain.is_empty() {
-            // Clear the plain text from buffer
-            self.buffer.clear();
-        }
-
-        plain
     }
 
     /// Check if we're still waiting for more content
@@ -499,7 +413,7 @@ fn extract_content_from_json(json_chunk: &Value) -> Option<String> {
         .get("delta")?
         .get("content")?
         .as_str()
-        .map(|s| s.to_string())
+        .map(ToString::to_string)
         .or_else(|| {
             // Try non-streaming format
             json_chunk
@@ -508,7 +422,7 @@ fn extract_content_from_json(json_chunk: &Value) -> Option<String> {
                 .get("message")?
                 .get("content")?
                 .as_str()
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
         })
 }
 
